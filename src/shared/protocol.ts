@@ -17,8 +17,8 @@ export const MAX_SELECTION_LENGTH = 12000
 /** 上下文段落允许的最大字符数（系统级取词用 UIA 读选区所在段落，超长直接截断）。 */
 export const MAX_CONTEXT_LENGTH = 4000
 
-/** 划词菜单的两个动作。 */
-export type SelectionAction = 'translate' | 'explain'
+/** 划词菜单的三个动作。 */
+export type SelectionAction = 'translate' | 'explain' | 'summarize'
 
 /** 界面语言：决定回答语言与默认目标语言。 */
 export type UiLocale = 'zh' | 'en'
@@ -45,6 +45,8 @@ export interface RunRequest {
   target?: string
   /** 界面语言。 */
   locale?: UiLocale
+  /** 强制走哪条执行路径（缺省读设置里的 engine）。 */
+  engine?: RunEngine
 }
 
 /** SSE 事件（每帧 `data: <json>\n\n`）。 */
@@ -133,8 +135,17 @@ export interface ModelSeat {
   reasoningEffort?: string
 }
 
+/** 一次划词走哪条执行路径。 */
+export type RunEngine =
+  /** 直连模型：一次普通调用，边生成边显示，最快，但没有会话记录、不能用工具。 */
+  | 'direct'
+  /** 走 Harness 自己的 agent 回合：会建一条真实会话（可在侧栏继续追问），但慢得多。 */
+  | 'agent'
+
 /** 插件设置（持久化在 DSH home 下的 dsh-selection-tools.json）。 */
 export interface SelectionToolsSettings {
+  /** 执行路径（默认 direct）。 */
+  engine: RunEngine
   /** 默认翻译至：语言 id 或 `auto`（跟随原文自动）。 */
   targetLanguage: string
   /** 选中文本已经是「默认翻译至」的语言时改译成的语言：语言 id 或 `auto`（镜像）。 */
@@ -143,10 +154,14 @@ export interface SelectionToolsSettings {
   explainRules: string
   /** 翻译时交给模型的"要求"文本。 */
   translateRules: string
+  /** 总结时交给模型的"要求"文本。 */
+  summarizeRules: string
   /** 翻译用的模型座位；null = 跟随当前会话 / 部署默认。 */
   translateModel: ModelSeat | null
   /** 解释用的模型座位；null = 跟随当前会话 / 部署默认。 */
   explainModel: ModelSeat | null
+  /** 总结用的模型座位；null = 跟随当前会话 / 部署默认。 */
+  summarizeModel: ModelSeat | null
 }
 
 /** 解释规则默认文本。 */
@@ -176,14 +191,27 @@ export const DEFAULT_TRANSLATE_RULES = [
   '- 保留原文的格式、换行、行内代码与专有名词；如果原文已经是目标语言，原样返回。',
 ].join('\n')
 
+/** 总结规则默认文本。 */
+export const DEFAULT_SUMMARIZE_RULES = [
+  '- 先用一句话给出核心结论，再分「要点」小节逐条列出关键信息（每条一行，最多 5 条）。',
+  '- 如果原文有明确的结构（章节、列表、对话轮次），保留它的大致层次再压缩。',
+  '- 只保留原文真正说了的内容：不要补充背景知识，不要评价好坏，不要给建议。',
+  '- 数字、专有名词、结论性判断必须原样保留，不要模糊成「一些」「若干」。',
+  '- 用 Markdown 组织回答；原文很短时直接给一句话总结，不要硬凑要点。',
+  '- 这是一次独立请求：只总结选中的文本，不要提及或评论任何先前的对话内容。',
+].join('\n')
+
 /** 默认设置。 */
 export const DEFAULT_SETTINGS: SelectionToolsSettings = {
+  engine: 'direct',
   targetLanguage: AUTO_LANGUAGE_ID,
   fallbackLanguage: AUTO_LANGUAGE_ID,
   explainRules: DEFAULT_EXPLAIN_RULES,
   translateRules: DEFAULT_TRANSLATE_RULES,
+  summarizeRules: DEFAULT_SUMMARIZE_RULES,
   translateModel: null,
   explainModel: null,
+  summarizeModel: null,
 }
 
 /** 规则文本上限（避免把提示词撑爆）。 */
@@ -226,11 +254,14 @@ export function normalizeSettings(input: unknown): SelectionToolsSettings {
     return { provider, model, ...(effort === '' ? {} : { reasoningEffort: effort }) }
   }
   return {
+    engine: raw.engine === 'agent' ? 'agent' : 'direct',
     targetLanguage: language(raw.targetLanguage, DEFAULT_SETTINGS.targetLanguage),
     fallbackLanguage: language(raw.fallbackLanguage, DEFAULT_SETTINGS.fallbackLanguage),
     explainRules: rules(raw.explainRules, DEFAULT_SETTINGS.explainRules),
     translateRules: rules(raw.translateRules, DEFAULT_SETTINGS.translateRules),
+    summarizeRules: rules(raw.summarizeRules, DEFAULT_SETTINGS.summarizeRules),
     translateModel: seat(raw.translateModel),
     explainModel: seat(raw.explainModel),
+    summarizeModel: seat(raw.summarizeModel),
   }
 }

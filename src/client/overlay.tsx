@@ -81,11 +81,13 @@ const COPY = {
   zh: {
     explain: '解释',
     translate: '翻译',
+    summarize: '总结',
     panelExplain: '解释',
     panelTranslate: '翻译',
+    panelSummarize: '总结',
     expand: '展开原文',
     collapse: '收起原文',
-    running: 'Harness agent 生成中…',
+    running: '生成中…',
     done: '完成',
     failed: '失败',
     copy: '复制',
@@ -97,11 +99,13 @@ const COPY = {
   en: {
     explain: 'Explain',
     translate: 'Translate',
+    summarize: 'Summarize',
     panelExplain: 'Explain',
     panelTranslate: 'Translate',
+    panelSummarize: 'Summarize',
     expand: 'Show full source',
     collapse: 'Collapse source',
-    running: 'Harness agent is working…',
+    running: 'Working…',
     done: 'Done',
     failed: 'Failed',
     copy: 'Copy',
@@ -144,7 +148,7 @@ const PANEL_MIN_W = 280
 const PANEL_MIN_H = 180
 const MARGIN = 20
 const MENU_W = 192
-const MENU_H = 120
+const MENU_H = 168
 const LAYOUT_KEY = 'dsh.selection-tools.layout'
 
 const viewport = () => ({
@@ -295,6 +299,7 @@ function fallbackIcon(path: string, size: number): ReactNode {
 const FALLBACK_PATHS = {
   sparkle: 'M8 2.2 9.3 6 13 7.3 9.3 8.6 8 12.4 6.7 8.6 3 7.3 6.7 6z',
   globe: 'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM2.6 8h10.8M8 2.2c1.6 1.6 2.4 3.6 2.4 5.8S9.6 12.2 8 13.8C6.4 12.2 5.6 10.2 5.6 8S6.4 3.8 8 2.2z',
+  list: 'M6 4h8M6 8h8M6 12h5.5M3 4h.01M3 8h.01M3 12h.01',
   copy: 'M6 2.8h5.2a1 1 0 0 1 1 1V9M4.8 5.2h5.2a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4.8a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z',
   close: 'M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6',
   chevronDown: 'M4 6.4 8 10.2l4-3.8',
@@ -309,6 +314,9 @@ function icon(name: keyof typeof FALLBACK_PATHS, size = 16): ReactNode {
       break
     case 'globe':
       official = primitives.IconGlobeOutline14
+      break
+    case 'list':
+      // 官方原语里没有清单图标，固定用自带的线性图标。
       break
     case 'copy':
       official = primitives.IconCopyOutline16
@@ -353,6 +361,23 @@ interface DragState {
   y: number
   w: number
   h: number
+}
+
+/** 文案字段名（两种语言共用）；值放宽成 string，避免字面量类型把两套文案排他。 */
+type Copy = Record<keyof (typeof COPY)['zh'], string>
+
+/** 面板标题：按动作取文案。 */
+function actionTitle(action: SelectionAction, copy: Copy): string {
+  if (action === 'translate') return copy.panelTranslate
+  if (action === 'summarize') return copy.panelSummarize
+  return copy.panelExplain
+}
+
+/** 面板标题旁的小图标：与菜单项保持一致。 */
+function actionIcon(action: SelectionAction): 'sparkle' | 'globe' | 'list' {
+  if (action === 'translate') return 'globe'
+  if (action === 'summarize') return 'list'
+  return 'sparkle'
 }
 
 /**
@@ -655,7 +680,7 @@ export function Overlay(props: { ctx: ClientContext }): ReactNode {
     // 锚点第四象限：文字右下角外侧 +8px；贴边时回翻，保证菜单整体可见。
     const x = clamp(menu.anchorX + 8, 8, box.w - MENU_W - 8)
     const y = clamp(menu.anchorY + 8, 8, box.h - MENU_H - 8)
-    const item = (action: SelectionAction, label: string, iconName: 'sparkle' | 'globe') =>
+    const item = (action: SelectionAction, label: string, iconName: 'sparkle' | 'globe' | 'list') =>
       createElement(
         'button',
         {
@@ -674,6 +699,7 @@ export function Overlay(props: { ctx: ClientContext }): ReactNode {
       { className: 'dst-menu', style: { left: x, top: y, width: MENU_W }, role: 'menu', 'aria-label': 'Selection tools' },
       createElement('div', { className: 'dst-menu-caption', role: 'presentation' }, 'DeepSeek Harness', createElement('span', { 'aria-hidden': true }, 'Esc')),
       item('explain', copy.explain, 'sparkle'),
+      item('summarize', copy.summarize, 'list'),
       item('translate', copy.translate, 'globe'),
     )
   }
@@ -717,7 +743,7 @@ export function Overlay(props: { ctx: ClientContext }): ReactNode {
             className: 'dst-panel',
             style: { left: panel.x, top: panel.y, width: panel.w, height: panel.h } as CSSProperties,
             role: 'dialog',
-            'aria-label': panel.action === 'translate' ? copy.panelTranslate : copy.panelExplain,
+            'aria-label': actionTitle(panel.action, copy),
           },
           createElement(
             'header',
@@ -731,12 +757,12 @@ export function Overlay(props: { ctx: ClientContext }): ReactNode {
             createElement(
               'span',
               { className: 'dst-menu-item-icon' },
-              icon(panel.action === 'translate' ? 'globe' : 'sparkle', 16),
+              icon(actionIcon(panel.action), 16),
             ),
             createElement(
               'span',
               { className: 'dst-panel-title' },
-              panel.action === 'translate' ? copy.panelTranslate : copy.panelExplain,
+              actionTitle(panel.action, copy),
               createElement('span', { className: 'dst-panel-brand' }, 'Harness'),
             ),
             createElement(

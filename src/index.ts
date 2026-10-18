@@ -32,13 +32,18 @@ import {
 export const name = PLUGIN_ID
 
 /**
- * 硬依赖：路由宿主与 agent 注册表。
+ * 硬依赖：路由宿主、agent 注册表、LLM 服务。
  * （model route 默认值经 ctx.get('agentDefaultModel') 可选读取。）
+ *
+ * `agents` 只在 engine='agent' 那条老路径上用到；`llm` 是快路径的唯一依赖。
  */
-export const inject = ['webServer', 'agents']
+export const inject = ['webServer', 'agents', 'llm']
 
-/** 每个会话串行执行，避免两次划词互相打断。 */
+/** 每个会话串行执行，避免两次划词互相打断（仅 engine='agent' 路径）。 */
 const queues = new Map<string, Promise<unknown>>()
+
+/** 正在跑的直连请求：runId → 中止器（`/stop` 用）。 */
+const runs = new Map<string, AbortController>()
 
 /** @deepseek-ai/dsh-agent 的 AgentHandle（只用到 agent / dispose）。 */
 interface AgentHandle {
@@ -121,8 +126,15 @@ async function readBody(req: AsyncIterable<unknown>): Promise<string> {
 async function parseRunRequest(req: AsyncIterable<unknown>): Promise<RunRequest> {
   const raw = await readBody(req)
   const parsed = JSON.parse(raw === '' ? '{}' : raw) as Partial<RunRequest>
-  const action = parsed.action === 'translate' ? 'translate' : parsed.action === 'explain' ? 'explain' : undefined
-  if (action === undefined) throw new Error('action must be "translate" or "explain"')
+  const action =
+    parsed.action === 'translate'
+      ? 'translate'
+      : parsed.action === 'summarize'
+        ? 'summarize'
+        : parsed.action === 'explain'
+          ? 'explain'
+          : undefined
+  if (action === undefined) throw new Error('action must be "translate", "explain" or "summarize"')
   const text = typeof parsed.text === 'string' ? parsed.text : ''
   if (text.trim() === '') throw new Error('text is empty')
   if (text.length > MAX_SELECTION_LENGTH) throw new Error(`text is longer than ${MAX_SELECTION_LENGTH} characters`)
@@ -137,6 +149,7 @@ async function parseRunRequest(req: AsyncIterable<unknown>): Promise<RunRequest>
     ...(typeof parsed.provider === 'string' && parsed.provider !== '' ? { provider: parsed.provider } : {}),
     ...(typeof parsed.model === 'string' && parsed.model !== '' ? { model: parsed.model } : {}),
     ...(typeof parsed.target === 'string' && parsed.target !== '' ? { target: parsed.target } : {}),
+    ...(parsed.engine === 'direct' || parsed.engine === 'agent' ? { engine: parsed.engine } : {}),
   }
 }
 
@@ -150,7 +163,12 @@ function resolveAgentOptions(
   settings: SelectionToolsSettings,
 ): { provider: string; model: string; reasoningEffort?: string } | undefined {
   // 设置里为这个动作指定了模型座位 → 它就是最优先（用户显式选择）。
-  const seat = request.action === 'translate' ? settings.translateModel : settings.explainModel
+  const seat =
+    request.action === 'translate'
+      ? settings.translateModel
+      : request.action === 'summarize'
+        ? settings.summarizeModel
+        : settings.explainModel
   if (seat !== null) {
     return {
       provider: seat.provider,
@@ -248,6 +266,122 @@ function lastAssistantText(session: SessionLike, fromSeq: number): string {
   return ''
 }
 
+/** 直连路径用到的 LLM 服务面（`ctx.get('llm')`）。 */
+interface LlmLike {
+  stream: (options: unknown) => AsyncIterable<StreamChunkLike>
+}
+
+/** 只声明本插件真正读的 chunk 字段。 */
+interface StreamChunkLike {
+  type?: string
+  text?: unknown
+  reason?: { kind?: string; failure?: { message?: unknown; code?: unknown } }
+}
+
+/** 一轮直连请求的运行句柄。 */
+interface DirectCall {
+  provider: string
+  model: string
+  reasoningEffort?: string
+}
+
+/**
+ * 决定这条请求打到哪个模型：设置里的座位 > 请求自带的 route > 部署默认。
+ * 与 agent 路径共用同一套优先级（resolveAgentOptions）。
+ */
+function resolveDirectCall(
+  ctx: AnyCtx,
+  request: RunRequest,
+  settings: SelectionToolsSettings,
+): DirectCall | undefined {
+  const seat =
+    request.action === 'translate'
+      ? settings.translateModel
+      : request.action === 'summarize'
+        ? settings.summarizeModel
+        : settings.explainModel
+  if (seat !== null) {
+    return {
+      provider: seat.provider,
+      model: seat.model,
+      ...(seat.reasoningEffort === undefined ? {} : { reasoningEffort: seat.reasoningEffort }),
+    }
+  }
+  if (request.provider !== undefined && request.model !== undefined) {
+    return { provider: request.provider, model: request.model }
+  }
+  return defaultAgentOptions(ctx)
+}
+
+/**
+ * 快路径：不建会话、不进 agent loop，直接调一次模型并把增量推下去。
+ *
+ * 这是与 agent 路径的**行为差异**所在：没有系统提示、没有工具、没有 DSH 会话记录，
+ * 因此不能在侧栏里接着追问——换来的是首字延迟从"整轮跑完"降到"模型吐第一个字"。
+ *
+ * @param ctx - 宿主上下文（用它的 `llm` 服务）。
+ * @param sink - SSE 写出面。
+ * @param args - 已校验的划词请求。
+ */
+async function runDirect(ctx: AnyCtx, sink: SseSink, args: RunRequest): Promise<void> {
+  const settings = loadSettings()
+  const llm = ctx.get?.('llm') as LlmLike | undefined
+  if (llm === undefined || llm === null || typeof llm.stream !== 'function') {
+    throw new Error('llm service is unavailable')
+  }
+  const call = resolveDirectCall(ctx, args, settings)
+  if (call === undefined) {
+    throw new Error('no model route: set one in the plugin settings or in the current session')
+  }
+
+  const locale = args.locale ?? 'zh'
+  const target = args.target ?? resolveTarget(args.text, settings, locale)
+  const rules =
+    args.action === 'translate'
+      ? settings.translateRules
+      : args.action === 'summarize'
+        ? settings.summarizeRules
+        : settings.explainRules
+  const prompt = buildPrompt(args.action, args.text, target, locale, args.context ?? '', rules)
+
+  const runId = `run-${randomUUID()}`
+  const controller = new AbortController()
+  runs.set(runId, controller)
+  // 客户端拿 runId 当 sessionId 用（/stop 的形状不变，只是它现在指向一次请求而不是一条会话）。
+  sink.send({ type: 'session', sessionId: runId })
+
+  let text = ''
+  try {
+    const options = {
+      provider: call.provider,
+      model: call.model,
+      ...(call.reasoningEffort === undefined ? {} : { reasoningEffort: call.reasoningEffort }),
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+      signal: controller.signal,
+    }
+    for await (const chunk of llm.stream(options)) {
+      if (chunk === null || typeof chunk !== 'object') continue
+      if (chunk.type === 'text-delta' && typeof chunk.text === 'string') {
+        text += chunk.text
+        sink.send({ type: 'delta', text: chunk.text })
+        continue
+      }
+      if (chunk.type !== 'finish') continue
+      const kind = chunk.reason?.kind
+      if (kind === 'error' || kind === 'aborted') {
+        const failure = chunk.reason?.failure
+        const message = typeof failure?.message === 'string' && failure.message !== '' ? failure.message : 'model call failed'
+        throw new Error(message)
+      }
+    }
+  } finally {
+    runs.delete(runId)
+  }
+
+  if (text.trim() === '') throw new Error('model produced no text output')
+  sink.send({ type: 'done', sessionId: runId, text })
+}
+
 /** 跑一轮：把 agent 的 assistant 文本增量以 SSE 推给调用方。 */
 async function runTurn(
   ctx: AnyCtx,
@@ -265,7 +399,12 @@ async function runTurn(
   const fromSeq = Number(session.seq ?? 0)
   const locale = args.locale ?? 'zh'
   const target = args.target ?? resolveTarget(args.text, settings, locale)
-  const rules = args.action === 'translate' ? settings.translateRules : settings.explainRules
+  const rules =
+    args.action === 'translate'
+      ? settings.translateRules
+      : args.action === 'summarize'
+        ? settings.summarizeRules
+        : settings.explainRules
   const prompt = buildPrompt(args.action, args.text, target, locale, args.context ?? '', rules)
 
   /** 本轮事件轨迹（诊断用：失败时能看出卡在哪一步）。 */
@@ -360,9 +499,14 @@ function listenAgentError(agent: AgentLike, report: (message: string) => void): 
   }
 }
 
-/** 停止一轮：与官方会话 Stop 按钮走同一条 agent.cancel 路径。 */
+/** 停止一轮：直连请求走 AbortController，agent 请求走 agent.cancel。 */
 function stopTurn(ctx: AnyCtx, sessionId: string | undefined): boolean {
   if (sessionId === undefined) return false
+  const direct = runs.get(sessionId)
+  if (direct !== undefined) {
+    direct.abort()
+    return true
+  }
   const agent = ctx.agents.get?.(sessionId) as AgentLike | undefined
   if (agent?.cancel === undefined) return false
   agent.cancel({ kind: 'user' }, { keepInbox: true })
@@ -480,7 +624,9 @@ async function handleRequest(ctx: AnyCtx, req: any, res: any, companion: Compani
   })
   const sink = makeSink(res)
   try {
-    await runTurn(ctx, sink, args)
+    const engine = args.engine ?? loadSettings().engine
+    if (engine === 'agent') await runTurn(ctx, sink, args)
+    else await runDirect(ctx, sink, args)
   } catch (error) {
     ctx.logger?.warn?.(`${PLUGIN_ID}: run failed`, error)
     sink.send({ type: 'error', message: error instanceof Error ? error.message : String(error) })

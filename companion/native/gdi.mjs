@@ -90,7 +90,7 @@ export function createGdi(koffi) {
   let token = 0
   let started = false
 
-  /** 建立字体族（一次）：中文优先雅黑，回落 UI 字体，再回落 GDI+ 通用无衬线。 */
+  /** 建立字体族（一次）：优先鸿蒙字体（豆包同款），再回落雅黑/系统无衬线。 */
   function ensureFamilies() {
     if (families !== null) return families
     const build = (names) => {
@@ -101,7 +101,7 @@ export function createGdi(koffi) {
       return null
     }
     families = {
-      ui: build(['Microsoft YaHei UI', 'Microsoft YaHei', 'Segoe UI']),
+      ui: build(['HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Segoe UI']),
       mono: build(['Cascadia Mono', 'Consolas', 'Courier New']),
     }
     return families

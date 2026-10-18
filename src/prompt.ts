@@ -11,6 +11,7 @@
 import {
   AUTO_LANGUAGE_ID,
   DEFAULT_EXPLAIN_RULES,
+  DEFAULT_SUMMARIZE_RULES,
   DEFAULT_TRANSLATE_RULES,
   languageById,
   type SelectionAction,
@@ -88,13 +89,15 @@ function skeleton(
   action: SelectionAction,
 ): { intro: string; heading: string; textLabel: string; contextLabel: string } {
   if (locale === 'en') {
-    return action === 'translate'
-      ? { intro: 'Translate the text below into {target}.', heading: 'Requirements:', textLabel: 'Selected text:', contextLabel: 'Surrounding text (context only):' }
-      : { intro: 'Explain the text below.', heading: 'Requirements:', textLabel: 'Selected text:', contextLabel: 'Surrounding text:' }
+    const shared = { heading: 'Requirements:', textLabel: 'Selected text:', contextLabel: 'Surrounding text (context only):' }
+    if (action === 'translate') return { intro: 'Translate the text below into {target}.', ...shared }
+    if (action === 'summarize') return { intro: 'Summarize the text below.', ...shared }
+    return { intro: 'Explain the text below.', ...shared, contextLabel: 'Surrounding text:' }
   }
-  return action === 'translate'
-    ? { intro: '把下面的文本翻译成{target}。', heading: '要求：', textLabel: '选中的文本：', contextLabel: '上文（仅作语境，不要翻译）：' }
-    : { intro: '解释下面这段文本。', heading: '要求：', textLabel: '选中的文本：', contextLabel: '上文：' }
+  const shared = { heading: '要求：', textLabel: '选中的文本：', contextLabel: '上文（仅作语境，不要翻译）：' }
+  if (action === 'translate') return { intro: '把下面的文本翻译成{target}。', ...shared }
+  if (action === 'summarize') return { intro: '总结下面这段文本。', ...shared }
+  return { intro: '解释下面这段文本。', ...shared, contextLabel: '上文：' }
 }
 
 /**
@@ -116,7 +119,13 @@ export function buildPrompt(
 ): string {
   const trimmed = typeof context === 'string' ? context.trim() : ''
   const parts = skeleton(locale, action)
-  const requirement = rulesOf(rules, action === 'translate' ? DEFAULT_TRANSLATE_RULES : DEFAULT_EXPLAIN_RULES)
+  const fallbackRules =
+    action === 'translate'
+      ? DEFAULT_TRANSLATE_RULES
+      : action === 'summarize'
+        ? DEFAULT_SUMMARIZE_RULES
+        : DEFAULT_EXPLAIN_RULES
+  const requirement = rulesOf(rules, fallbackRules)
   const lines = [
     parts.intro.replace('{target}', target),
     '',

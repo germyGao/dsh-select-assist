@@ -7,6 +7,7 @@ const paths = {
   model: 'M6 5h8a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm2 3h4v4H8V8ZM8 2v3m4-3v3M8 15v3m4-3v3M2 8h3m-3 4h3m10-4h3m-3 4h3',
   rules: 'M5 3h8l3 3v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm7 0v4h4M7 10h6m-6 3h4',
   sparkle: 'm10 3 2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5Z',
+  list: 'M7 5h10M7 10h10M7 15h7M3.5 5h.01M3.5 10h.01M3.5 15h.01',
   check: 'm5 10 3 3 7-7',
   chevron: 'm7 8 3 3 3-3',
   arrow: 'M4 10h12m-4-4 4 4-4 4',

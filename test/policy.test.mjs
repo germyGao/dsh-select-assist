@@ -116,6 +116,105 @@ test('按下时就是这段选区、松开时还是它：这次手势没改动�
   assert.deepEqual(menuDecision(probe, '', { kind: 'drag' }), { open: true, reason: 'selection' })
   assert.deepEqual(menuDecision(probe, '', { kind: 'drag', pressProbe: null }), { open: true, reason: 'selection' })
   assert.deepEqual(menuDecision(probe, '', { kind: 'drag', pressProbe: { selection: '   ' } }), { open: true, reason: 'selection' })
+  // 拖形状时指针一直在元素里：读数到手时指针没离开按下点（driftPx 很小），快照可信，照样不弹。
+  assert.deepEqual(
+    menuDecision(probe, '', { kind: 'drag', pressProbe: { selection: '形状里的文字', driftPx: 0 } }),
+    { open: false, reason: 'unchanged-selection' },
+  )
+})
+
+test('按下快照拍晚了（读数到手时指针已经拖出去）：不能拿它判「没改动选区」', () => {
+  // 用户报的就是这条：浏览器里 UIA 首查要 100ms 以上，一次 80px 的拖选只要 150ms，读数回来
+  // 时早就拖完了——"按下那一刻"读到的是这次手势自己选出来的文字，跟松开时一模一样。判成
+  // unchanged-selection 的话，重复划同一段就再也弹不出来。
+  const probe = { selection: '只看三件事…虚拟环境…cv2.imread', source: 'point', atGesture: true }
+  for (const driftPx of [13, 40, 83, 500]) {
+    assert.deepEqual(
+      menuDecision(probe, '', { kind: 'drag', pressProbe: { selection: probe.selection, driftPx } }),
+      { open: true, reason: 'selection' },
+    )
+  }
+  // 量不到（null / 非数字）：按老行为处理，快照仍算可信——不能凭空多出一条判据。
+  for (const driftPx of [null, undefined, Number.NaN, 'x']) {
+    assert.deepEqual(
+      menuDecision(probe, '', { kind: 'drag', pressProbe: { selection: probe.selection, driftPx } }),
+      { open: false, reason: 'unchanged-selection' },
+    )
+  }
+  // 阈值附近：≤12px 仍算"没离开按下点"（拖形状时指针会有一点点抖动）。
+  assert.deepEqual(
+    menuDecision(probe, '', { kind: 'drag', pressProbe: { selection: probe.selection, driftPx: 12 } }),
+    { open: false, reason: 'unchanged-selection' },
+  )
+})
+
+test('同一段文字但选区矩形原地没动：重划同一段，应该弹（DSH/浏览器菜单超时后旧选区还在）', () => {
+  const probe = {
+    selection: '重划同一段',
+    source: 'point',
+    atGesture: true,
+    rects: [{ left: 100, top: 200, right: 300, bottom: 220 }],
+  }
+  const pressProbe = {
+    selection: '重划同一段',
+    driftPx: 0,
+    rects: [{ left: 100, top: 200, right: 300, bottom: 220 }],
+  }
+  // 矩形一致 → 不判 unchanged-selection；后续 atGesture=true → 弹。
+  assert.deepEqual(
+    menuDecision(probe, '', { kind: 'drag', pressProbe }),
+    { open: true, reason: 'selection' },
+  )
+  // 矩形抖动在容差内（≤6px）也算没动。
+  assert.deepEqual(
+    menuDecision(
+      { ...probe, rects: [{ left: 100, top: 206, right: 300, bottom: 220 }] },
+      '',
+      { kind: 'drag', pressProbe: { ...pressProbe, rects: [{ left: 100, top: 200, right: 300, bottom: 214 }] } },
+    ),
+    { open: true, reason: 'selection' },
+  )
+})
+
+test('同一段文字但选区矩形明显挪动了：才认定是拖对象，不弹', () => {
+  const probe = {
+    selection: '形状里的文字',
+    source: 'point',
+    atGesture: true,
+    rects: [{ left: 100, top: 200, right: 300, bottom: 220 }],
+  }
+  const pressProbe = {
+    selection: '形状里的文字',
+    driftPx: 0,
+    rects: [{ left: 100, top: 200, right: 300, bottom: 220 }],
+  }
+  // 矩形向下挪了 50px：拖对象。
+  assert.deepEqual(
+    menuDecision(
+      { ...probe, rects: [{ left: 100, top: 250, right: 300, bottom: 270 }] },
+      '',
+      { kind: 'drag', pressProbe },
+    ),
+    { open: false, reason: 'unchanged-selection' },
+  )
+  // 左右也同理。
+  assert.deepEqual(
+    menuDecision(
+      { ...probe, rects: [{ left: 170, top: 200, right: 370, bottom: 220 }] },
+      '',
+      { kind: 'drag', pressProbe },
+    ),
+    { open: false, reason: 'unchanged-selection' },
+  )
+})
+
+test('没拿到矩形信息时， unchanged-selection 按老行为走：同文字 + 快照可信 → 不弹', () => {
+  const probe = { selection: '形状里的文字', source: 'point', atGesture: true }
+  const pressProbe = { selection: '形状里的文字', driftPx: 0 }
+  assert.deepEqual(
+    menuDecision(probe, '', { kind: 'drag', pressProbe }),
+    { open: false, reason: 'unchanged-selection' },
+  )
 })
 
 test('按下时是别的文字（或没有选区）：这次手势确实改动了选区，照弹', () => {

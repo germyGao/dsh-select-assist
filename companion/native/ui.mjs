@@ -10,14 +10,14 @@ import { rgb } from './gdi.mjs'
 
 /** 深浅主题共用同一层级：正文底色、引用底色、蓝色强调与辅助文本。 */
 export const THEMES = {
-  dark: { menu: '#1b2230', layer1: '#232d3d', labelPrimary: '#edf2fa', labelSecondary: '#bbc7d8', labelTertiary: '#94a4bb', hoverAlpha: 0x22, borderAlpha: 0x22, accent: '#82aaff', danger: '#ff929b', success: '#79d7b2' },
-  light: { menu: '#ffffff', layer1: '#f3f6fb', labelPrimary: '#1b2940', labelSecondary: '#52627a', labelTertiary: '#697b94', hoverAlpha: 0x12, borderAlpha: 0x20, accent: '#3568db', danger: '#c43e51', success: '#238060' },
+  dark: { menu: '#1c2433', layer1: '#273142', labelPrimary: '#eef3fb', labelSecondary: '#b9c6d9', labelTertiary: '#8fa1b8', hoverAlpha: 0x20, borderAlpha: 0x20, accent: '#7da6ff', danger: '#ff8f9c', success: '#7adbb5' },
+  light: { menu: '#ffffff', layer1: '#f4f7fc', labelPrimary: '#1a1e2e', labelSecondary: '#3d4656', labelTertiary: '#5a6478', hoverAlpha: 0x10, borderAlpha: 0x1e, accent: '#2f63e0', danger: '#c03d50', success: '#1f7e60' },
 }
 
 /** 设计尺寸（DIP）。回答窗口只有"面板"一种形态（悬浮球已移除）。 */
 export const MODES = {
-  menu: { width: 188, height: 88, radius: 14 },
-  panel: { width: 400, height: 480, radius: 16 },
+  menu: { width: 328, height: 36, radius: 10 },
+  panel: { width: 380, height: 460, radius: 16 },
 }
 
 /** 取调色板（按明暗主题）。 */
@@ -32,9 +32,9 @@ export function palette(dark) {
     labelTertiaryColor: rgb(t.labelTertiary),
     hoverColor: rgb(t.accent, t.hoverAlpha),
     borderColor: rgb(dark ? '#a8bddb' : '#7186a5', t.borderAlpha),
-    dividerColor: rgb(dark ? '#a8bddb' : '#7186a5', dark ? 0x1a : 0x18),
-    accentSoftColor: rgb(dark ? '#293c5f' : '#edf3ff'),
-    footerColor: rgb(dark ? '#18202c' : '#f8faff'),
+    dividerColor: rgb(dark ? '#a8bddb' : '#7186a5', dark ? 0x18 : 0x14),
+    accentSoftColor: rgb(dark ? '#2b3d60' : '#eef3ff'),
+    footerColor: rgb(dark ? '#19202d' : '#f9fbff'),
     accentColor: rgb(t.accent),
     dangerColor: rgb(t.danger),
     successColor: rgb(t.success),
@@ -45,8 +45,8 @@ export function palette(dark) {
 
 /** 面板布局常量（DIP）。 */
 export const PANEL = { padding: 16, headerHeight: 48, buttonSize: 28, sourcePadding: 12, sourceMaxHeight: 96, footerHeight: 36, scrollbarWidth: 3 }
-/** 菜单绘制与命中共享行尺寸，避免紧凑布局后出现点按错位。 */
-const MENU = { padding: 4, rowHeight: 40 }
+/** 菜单绘制与命中共享段尺寸，避免点按错位。 */
+const MENU = { padding: 4, segmentWidth: 80, segmentHeight: 28 }
 /** 正文区底部与状态条之间留出的空隙（DIP）。 */
 const BOTTOM_INSET = 6
 
@@ -75,11 +75,11 @@ export function panelLayout(state, width = MODES.panel.width, height = MODES.pan
   const source = typeof state.source === 'string' ? state.source : ''
   const charsPerLine = Math.max(12, Math.floor((contentWidth - PANEL.sourcePadding * 2) / 12))
   const sourceLines = source.split(/\r?\n/).reduce((count, line) => count + Math.max(1, Math.ceil(line.length / charsPerLine)), 0)
-  const sourceHeight = source === '' ? 0 : Math.min(PANEL.sourceMaxHeight, 36 + sourceLines * 18, Math.max(0, bodyHeight - 60))
+  const sourceHeight = source === '' ? 0 : Math.min(PANEL.sourceMaxHeight, 32 + sourceLines * 16, Math.max(0, bodyHeight - 56))
   // 上下文提示和回答标签同处一行，不额外侵占正文高度。
-  const contextLine = state.context === undefined || state.context === '' ? 0 : 18
-  const answerLabelTop = bodyTop + sourceHeight + (sourceHeight > 0 ? 10 : 0)
-  const answerTop = answerLabelTop + 22
+  const contextLine = state.context === undefined || state.context === '' ? 0 : 16
+  const answerLabelTop = bodyTop + sourceHeight + (sourceHeight > 0 ? 8 : 0)
+  const answerTop = answerLabelTop + 18
   return {
     width,
     height,
@@ -108,11 +108,32 @@ export function panelButtons(state, width = MODES.panel.width) {
   return boxes
 }
 
-/** 菜单行命中（DIP）→ 0/1/-1。 */
+/** 菜单段命中（DIP）→ 0/1/2/3/-1（0=解释，1=总结，2=翻译，3=朗读）。 */
 export function menuRowAt(x, y) {
-  if (x < MENU.padding || x > MODES.menu.width - MENU.padding) return -1
-  const row = Math.floor((y - MENU.padding) / MENU.rowHeight)
-  return row === 0 || row === 1 ? row : -1
+  if (y < MENU.padding || y > MODES.menu.height - MENU.padding) return -1
+  const seg = Math.floor((x - MENU.padding) / MENU.segmentWidth)
+  return seg === 0 || seg === 1 || seg === 2 || seg === 3 ? seg : -1
+}
+
+/** 动作 → 面板标题栏图标。与菜单行图标保持一致。 */
+function actionIcon(action) {
+  if (action === 'summarize') return 'list'
+  if (action === 'translate') return 'globe'
+  return 'sparkle'
+}
+
+/** 动作 → 面板标题栏文字。 */
+function actionTitle(action) {
+  if (action === 'summarize') return '总结'
+  if (action === 'translate') return '翻译'
+  return '解释'
+}
+
+/** 动作 → 正文区上方的标签（译文 / 总结 / 回答）。 */
+function actionBodyLabel(action) {
+  if (action === 'summarize') return '总结'
+  if (action === 'translate') return '译文'
+  return '回答'
 }
 
 function insideBox(x, y, box) {
@@ -175,24 +196,40 @@ export function panelHitZone(x, y, state, width = MODES.panel.width, height = MO
 
 // ---------------------------------------------------------------- 绘制
 
-/** 画划词菜单。 */
+/** 画划词菜单（横向胶囊条，豆包风格）。 */
 export function paintMenu(painter, width, height, state, scale) {
   const p = palette(state.dark)
   const s = scale
   painter.fillRoundRect(0, 0, width, height, MODES.menu.radius * s, p.menuColor)
   painter.strokeRoundRect(0.5 * s, 0.5 * s, width - s, height - s, MODES.menu.radius * s, p.borderColor, Math.max(1, s))
-  const rows = [
-    { label: '解释选文', icon: 'sparkle' },
-    { label: '翻译选文', icon: 'globe' },
+  // 4 段并列：段与段之间画一条 1px 分隔线，让胶囊条不会糊成一坨。
+  for (let k = 1; k < 4; k++) {
+    const sepX = (MENU.padding + k * MENU.segmentWidth) * s
+    painter.line(sepX, 8 * s, sepX, height - 8 * s, p.dividerColor, 1)
+  }
+  const segs = [
+    { label: '解释', icon: 'sparkle' },
+    { label: '总结', icon: 'list' },
+    { label: '翻译', icon: 'globe' },
+    { label: '朗读', icon: 'speak' },
   ]
-  for (let i = 0; i < rows.length; i++) {
-    const top = (MENU.padding + i * MENU.rowHeight) * s
+  for (let i = 0; i < segs.length; i++) {
+    const left = (MENU.padding + i * MENU.segmentWidth) * s
     const active = state.hover === i
-    if (active) painter.fillRoundRect(MENU.padding * s, top, width - MENU.padding * 2 * s, MENU.rowHeight * s, 10 * s, p.hoverColor)
-    painter.fillRoundRect(12 * s, top + 7 * s, 26 * s, 26 * s, 8 * s, p.accentSoftColor)
-    drawIcon(painter, rows[i].icon, 17 * s, top + 12 * s, 16 * s, p.accentColor, s)
-    painter.text(rows[i].label, 48 * s, top + 10 * s, width - 78 * s, 22 * s, { size: 13 * s, bold: active, color: active ? p.accentColor : p.labelPrimaryColor })
-    drawIcon(painter, 'chevron', width - 26 * s, top + 13 * s, 14 * s, active ? p.accentColor : p.labelTertiaryColor, s)
+    if (active) {
+      // 整段胶囊底色 + 文字加粗变色：轻量但一眼能认出当前项。
+      painter.fillRoundRect(left, MENU.padding * s, MENU.segmentWidth * s, MENU.segmentHeight * s, 8 * s, p.hoverColor)
+    }
+    // 图标 + 两字标签，水平居中，垂直居中于段高。
+    const labelW = 34 * s
+    const iconW = 14 * s
+    const gap = 4 * s
+    const totalW = iconW + gap + labelW
+    const cx = left + (MENU.segmentWidth * s - totalW) / 2
+    const iconY = MENU.padding * s + (MENU.segmentHeight - 14) / 2 * s
+    const textY = MENU.padding * s + (MENU.segmentHeight - 18) / 2 * s
+    drawIcon(painter, segs[i].icon, cx, iconY, iconW, active ? p.accentColor : p.labelPrimaryColor, s)
+    painter.text(segs[i].label, cx + iconW + gap, textY, labelW, 20 * s, { size: 13 * s, color: active ? p.accentColor : p.labelPrimaryColor })
   }
 }
 
@@ -206,11 +243,11 @@ export function paintPanel(painter, width, height, state, scale) {
   const layout = panelLayout(state, dipWidth, dipHeight)
   painter.fillRoundRect(0, 0, width, height, MODES.panel.radius * s, p.menuColor)
 
-  // 蓝色图标底座保持轻量，品牌只在宽裕的标题栏出现一次。
+  // 蓝色图标底座。
   painter.fillRoundRect(PANEL.padding * s, 11 * s, 26 * s, 26 * s, 8 * s, p.accentSoftColor)
-  drawIcon(painter, state.action === 'translate' ? 'globe' : 'sparkle', (PANEL.padding + 5) * s, 16 * s, 16 * s, p.accentColor, s)
-  painter.text(state.action === 'translate' ? '翻译' : '解释', (PANEL.padding + 36) * s, 13 * s, 40 * s, 23 * s, { size: 14 * s, bold: true, color: p.labelPrimaryColor })
-  if (dipWidth >= 340) painter.text('DSH', (PANEL.padding + 80) * s, 16 * s, 40 * s, 18 * s, { size: 10 * s, color: p.labelTertiaryColor })
+  drawIcon(painter, actionIcon(state.action), (PANEL.padding + 5) * s, 16 * s, 16 * s, p.accentColor, s)
+  painter.text(actionTitle(state.action), (PANEL.padding + 36) * s, 13 * s, 60 * s, 23 * s, { size: 14 * s, bold: true, color: p.labelPrimaryColor })
+  // "DSH" 水印移除：标题栏保持干净，品牌感由整体配色和圆角传达。
   const hasAnswer = typeof state.answer === 'string' && state.answer !== ''
   const hasSource = typeof state.source === 'string' && state.source !== ''
   for (const button of panelButtons(state, dipWidth)) {
@@ -220,7 +257,7 @@ export function paintPanel(painter, width, height, state, scale) {
     const active = (state.hoverButton === button.id || speaking) && !disabled
     const centerX = (button.x + button.size / 2) * s
     const centerY = (button.y + button.size / 2) * s
-    if (active) painter.fillRoundRect(button.x * s, button.y * s, button.size * s, button.size * s, 8 * s, p.hoverColor)
+    if (active) painter.fillRoundRect(button.x * s, button.y * s, button.size * s, button.size * s, 9 * s, p.hoverColor)
     const color = disabled ? p.disabledColor : active ? p.accentColor : p.labelTertiaryColor
     drawIcon(painter, button.id, centerX - 8 * s, centerY - 8 * s, 16 * s, color, s)
   }
@@ -229,23 +266,23 @@ export function paintPanel(painter, width, height, state, scale) {
   if (layout.sourceHeight > 0) {
     const sourceX = PANEL.padding * s
     const sourceY = layout.bodyTop * s
-    painter.fillRoundRect(sourceX, sourceY, layout.contentWidth * s, layout.sourceHeight * s, 10 * s, p.layer1Color)
-    painter.fillRoundRect(sourceX, sourceY + 12 * s, 2 * s, Math.max(0, layout.sourceHeight - 24) * s, s, p.accentColor)
-    painter.text('原文', (PANEL.padding + PANEL.sourcePadding) * s, sourceY + 5 * s, (layout.contentWidth - PANEL.sourcePadding * 2) * s, 16 * s, { size: 10 * s, bold: true, color: p.labelTertiaryColor })
+    // 原文区：去掉蓝色背景，只保留左侧竖条作为视觉锚点。
+    painter.fillRoundRect(sourceX, sourceY + 12 * s, 3 * s, Math.max(0, layout.sourceHeight - 24) * s, 1.5 * s, p.accentColor)
+    painter.text('原文', (PANEL.padding + PANEL.sourcePadding) * s, sourceY + 4 * s, (layout.contentWidth - PANEL.sourcePadding * 2) * s, 14 * s, { size: 9.5 * s, bold: true, color: p.labelTertiaryColor })
     // 原文独立裁剪，极窄窗口或连续长词也不能侵入回答区。
-    painter.setClip((PANEL.padding + PANEL.sourcePadding) * s, sourceY + 23 * s, (layout.contentWidth - PANEL.sourcePadding * 2) * s, Math.max(0, layout.sourceHeight - 29) * s)
-    painter.paragraph(state.source, (PANEL.padding + PANEL.sourcePadding) * s, sourceY + 23 * s, (layout.contentWidth - PANEL.sourcePadding * 2) * s, {
-      size: 12 * s,
-      lineHeight: 18 * s,
+    painter.setClip((PANEL.padding + PANEL.sourcePadding) * s, sourceY + 19 * s, (layout.contentWidth - PANEL.sourcePadding * 2) * s, Math.max(0, layout.sourceHeight - 25) * s)
+    painter.paragraph(state.source, (PANEL.padding + PANEL.sourcePadding) * s, sourceY + 19 * s, (layout.contentWidth - PANEL.sourcePadding * 2) * s, {
+      size: 11.5 * s,
+      lineHeight: 16 * s,
       color: p.labelSecondaryColor,
-      maxHeight: Math.max(0, layout.sourceHeight - 29) * s,
+      maxHeight: Math.max(0, layout.sourceHeight - 25) * s,
     })
     painter.resetClip()
   }
 
-  painter.text(state.action === 'translate' ? '译文' : '回答', PANEL.padding * s, layout.answerLabelTop * s, 48 * s, 17 * s, { size: 11 * s, bold: true, color: p.labelTertiaryColor })
+  painter.text(actionBodyLabel(state.action), PANEL.padding * s, layout.answerLabelTop * s, 48 * s, 16 * s, { size: 10.5 * s, bold: true, color: p.labelTertiaryColor })
   if (layout.contextLine > 0) {
-    painter.text('已结合上下文', (dipWidth - PANEL.padding - 94) * s, layout.answerLabelTop * s, 94 * s, 17 * s, { size: 10 * s, color: p.labelTertiaryColor })
+    painter.text('已结合上下文', (dipWidth - PANEL.padding - 90) * s, layout.answerLabelTop * s, 90 * s, 16 * s, { size: 9.5 * s, color: p.labelTertiaryColor })
   }
 
   const clipTop = layout.answerTop * s
@@ -292,25 +329,25 @@ export function paintPanel(painter, width, height, state, scale) {
   // 从右向左分配停止与复制回执，避免生成中复制时两段文字互相覆盖。
   let statusRight = dipWidth - PANEL.padding
   if (state.status === 'running') {
-    state.stopBox = { x: statusRight - 52, y: footerTop + 5, width: 52, height: 26 }
+    state.stopBox = { x: statusRight - 54, y: footerTop + 6, width: 54, height: 28 }
     const box = state.stopBox
-    painter.fillRoundRect(box.x * s, box.y * s, box.width * s, box.height * s, 7 * s, state.hoverButton === 'stop' ? p.hoverColor : p.accentSoftColor)
-    drawIcon(painter, 'stop', (box.x + 7) * s, (box.y + 7) * s, 12 * s, p.accentColor, s)
-    painter.text('停止', (box.x + 23) * s, (box.y + 4) * s, 27 * s, 18 * s, { size: 11 * s, color: p.accentColor })
+    painter.fillRoundRect(box.x * s, box.y * s, box.width * s, box.height * s, 8 * s, state.hoverButton === 'stop' ? p.hoverColor : p.accentSoftColor)
+    drawIcon(painter, 'stop', (box.x + 8) * s, (box.y + 8) * s, 12 * s, p.accentColor, s)
+    painter.text('停止', (box.x + 24) * s, (box.y + 5) * s, 28 * s, 18 * s, { size: 11.5 * s, color: p.accentColor })
     statusRight = box.x - 8
   } else {
     state.stopBox = null
   }
   if (typeof state.copyFeedback === 'string' && state.copyFeedback !== '') {
     const feedbackWidth = 70
-    painter.text(state.copyFeedback, (statusRight - feedbackWidth) * s, (footerTop + 9) * s, feedbackWidth * s, 18 * s, {
-      size: 11 * s,
+    painter.text(state.copyFeedback, (statusRight - feedbackWidth) * s, (footerTop + 10) * s, feedbackWidth * s, 18 * s, {
+      size: 11.5 * s,
       color: state.copyFeedback === '已复制' || state.copyFeedback === 'Copied' ? p.successColor : p.dangerColor,
     })
     statusRight -= feedbackWidth + 8
   }
-  painter.fillCircle(PANEL.padding * s, (footerTop + 15) * s, 5 * s, statusColor)
-  painter.text(statusText, (PANEL.padding + 12) * s, (footerTop + 9) * s, Math.max(0, statusRight - PANEL.padding - 12) * s, 18 * s, { size: 11 * s, color: state.status === 'error' ? p.dangerColor : p.labelTertiaryColor })
+  painter.fillCircle(PANEL.padding * s, (footerTop + 17) * s, 5.5 * s, statusColor)
+  painter.text(statusText, (PANEL.padding + 13) * s, (footerTop + 10) * s, Math.max(0, statusRight - PANEL.padding - 13) * s, 18 * s, { size: 12 * s, color: state.status === 'error' ? p.dangerColor : p.labelTertiaryColor })
   // 描边最后绘制，让分层背景与四边缩放区始终保持整洁完整。
   painter.strokeRoundRect(0.5 * s, 0.5 * s, width - s, height - s, MODES.panel.radius * s, p.borderColor, Math.max(1, s))
 }
@@ -319,66 +356,65 @@ export function paintPanel(painter, width, height, state, scale) {
 function drawAnswer(painter, state, x, y, width, s, p, clipTop, clipBottom) {
   if (state.answer === '') {
     if (state.status === 'running' || state.status === 'reading') {
-      painter.fillCircle(x + 2 * s, y + 8 * s, 4 * s, p.accentColor)
-      painter.text(state.status === 'reading' ? '正在获取所选文本…' : '正在整理回答…', x + 14 * s, y + 1 * s, width - 14 * s, 22 * s, { size: 12 * s, color: p.labelTertiaryColor })
-      return 26 * s
+      painter.fillCircle(x + 2 * s, y + 6 * s, 3.5 * s, p.accentColor)
+      painter.text(state.status === 'reading' ? '正在获取所选文本…' : '正在整理回答…', x + 12 * s, y + 1 * s, width - 12 * s, 18 * s, { size: 11.5 * s, color: p.labelTertiaryColor })
+      return 20 * s
     }
-    painter.text('暂无文本输出', x, y, width, 22 * s, { size: 14 * s, color: p.labelTertiaryColor })
+    painter.text('暂无文本输出', x, y, width, 18 * s, { size: 13 * s, color: p.labelTertiaryColor })
     return 26 * s
   }
   const blocks = parseBlocks(state.answer)
   let cursor = y
-  const bodySize = 14 * s
-  const lineHeight = 22 * s
+  const bodySize = 12.5 * s
+  const lineHeight = 17 * s
   for (const block of blocks) {
     const near = cursor > clipTop - 600 * s && cursor < clipBottom + 600 * s
     if (block.kind === 'heading') {
-      const size = (block.level <= 1 ? 16.5 : 15.5) * s
+      const size = (block.level <= 1 ? 15 : 14) * s
       cursor += near
-        ? painter.paragraph(block.text, x, cursor + 6 * s, width, { size, lineHeight: size * 1.5, bold: true, color: p.labelPrimaryColor })
-        : measure(painter, block.text, width, size, size * 1.5, true)
-      cursor += 6 * s
+        ? painter.paragraph(block.text, x, cursor + 4 * s, width, { size, lineHeight: size * 1.45, bold: true, color: p.labelPrimaryColor })
+        : measure(painter, block.text, width, size, size * 1.45, true)
+      cursor += 4 * s
     } else if (block.kind === 'bullet' || block.kind === 'ordered') {
       const marker = block.kind === 'ordered' ? String(block.marker) + '.' : '•'
-      painter.text(marker, x, cursor, 20 * s, lineHeight, { size: bodySize, color: p.labelSecondaryColor })
+      painter.text(marker, x, cursor, 18 * s, lineHeight, { size: bodySize, color: p.labelSecondaryColor })
       cursor += near
-        ? painter.paragraph(block.text, x + 16 * s, cursor, width - 16 * s, { size: bodySize, lineHeight, color: p.labelPrimaryColor })
-        : measure(painter, block.text, width - 16 * s, bodySize, lineHeight, false)
+        ? painter.paragraph(block.text, x + 14 * s, cursor, width - 14 * s, { size: bodySize, lineHeight, color: p.labelPrimaryColor })
+        : measure(painter, block.text, width - 14 * s, bodySize, lineHeight, false)
       cursor += 2 * s
     } else if (block.kind === 'code') {
-      const codeSize = 12.5 * s
-      const codeLine = 19 * s
-      const boxHeight = block.lines.length * codeLine + 16 * s
+      const codeSize = 11.5 * s
+      const codeLine = 17 * s
+      const boxHeight = block.lines.length * codeLine + 12 * s
       if (near) {
-        painter.fillRoundRect(x, cursor + 2 * s, width, boxHeight, 8 * s, p.layer1Color)
+        painter.fillRoundRect(x, cursor + 2 * s, width, boxHeight, 7 * s, p.layer1Color)
         for (let i = 0; i < block.lines.length; i++) {
-          painter.text(block.lines[i], x + 10 * s, cursor + 10 * s + i * codeLine, width - 20 * s, codeLine, { size: codeSize, mono: true, color: p.labelPrimaryColor })
+          painter.text(block.lines[i], x + 9 * s, cursor + 8 * s + i * codeLine, width - 18 * s, codeLine, { size: codeSize, mono: true, color: p.labelPrimaryColor })
         }
       }
-      cursor += boxHeight + 6 * s
+      cursor += boxHeight + 4 * s
     } else if (block.kind === 'quote') {
       const used = near
-        ? painter.paragraph(block.text, x + 12 * s, cursor, width - 12 * s, { size: bodySize, lineHeight, color: p.labelSecondaryColor })
-        : measure(painter, block.text, width - 12 * s, bodySize, lineHeight, false)
-      if (near) painter.fillRect(x, cursor + 2 * s, 2 * s, Math.max(4, used - 4 * s), p.accentColor)
-      cursor += used + 4 * s
+        ? painter.paragraph(block.text, x + 10 * s, cursor, width - 10 * s, { size: bodySize, lineHeight, color: p.labelSecondaryColor })
+        : measure(painter, block.text, width - 10 * s, bodySize, lineHeight, false)
+      if (near) painter.fillRect(x, cursor + 2 * s, 2 * s, Math.max(3, used - 3 * s), p.accentColor)
+      cursor += used + 3 * s
     } else if (block.kind === 'table') {
-      const rowLine = 20 * s
+      const rowLine = 18 * s
       for (const row of block.rows) {
-        // 走 paragraph 而不是单行 text：表格单元格里的 **粗体** / `代码` 才会被解析掉（踩过：直接 text 会把 ** 原样画出来）。
         cursor += near
-          ? painter.paragraph(row, x, cursor, width, { size: 12.5 * s, lineHeight: rowLine, color: p.labelSecondaryColor })
-          : measure(painter, row, width, 12.5 * s, rowLine, false)
+          ? painter.paragraph(row, x, cursor, width, { size: 12 * s, lineHeight: rowLine, color: p.labelSecondaryColor })
+          : measure(painter, row, width, 12 * s, rowLine, false)
       }
-      cursor += 4 * s
+      cursor += 3 * s
     } else if (block.kind === 'hr') {
-      if (near) painter.line(x, cursor + 9 * s, x + width, cursor + 9 * s, p.dividerColor, 1)
-      cursor += 20 * s
+      if (near) painter.line(x, cursor + 7 * s, x + width, cursor + 7 * s, p.dividerColor, 1)
+      cursor += 16 * s
     } else {
       cursor += near
         ? painter.paragraph(block.text, x, cursor, width, { size: bodySize, lineHeight, color: p.labelPrimaryColor })
         : measure(painter, block.text, width, bodySize, lineHeight, false)
-      cursor += 4 * s
+      cursor += 3 * s
     }
   }
   return cursor - (clipTop - state.scroll * s)
@@ -494,6 +530,16 @@ export function drawIcon(painter, id, x, y, size, color, s = 1) {
       painter.strokeEllipse(px(1.5), py(1.5), 13 * u, 13 * u, color, w)
       painter.line(px(1.5), py(8), px(14.5), py(8), color, w)
       painter.strokeEllipse(px(5), py(1.5), 6 * u, 13 * u, color, w)
+      return
+    }
+    case 'list': {
+      // 三条横线 + 左侧圆点：与"总结"语义一致的清单图标。
+      path([[6, 4], [14, 4]])
+      path([[6, 8], [14, 8]])
+      path([[6, 12], [11.5, 12]])
+      painter.fillCircle(px(2.4), py(3.4), 1.8 * u, color)
+      painter.fillCircle(px(2.4), py(7.4), 1.8 * u, color)
+      painter.fillCircle(px(2.4), py(11.4), 1.8 * u, color)
       return
     }
     case 'copy': {

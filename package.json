@@ -1,7 +1,7 @@
 {
   "name": "dsh-selection-tools",
-  "version": "0.8.2",
-  "description": "DSH plugin: select text in any Windows app to explain or translate it with DeepSeek Harness's own agent, answered in a native always-on-top overlay (draggable, resizable). · DeepSeek Harness 划词工具：任意应用里选中文字即在锚点右下角弹出菜单，用 Harness 自己的 agent 解释/翻译（自动带上选区所在的上下文段落），结果落在零依赖的原生置顶浮窗里（可拖动/缩放）。",
+  "version": "0.9.0",
+  "description": "DSH plugin: select text in any Windows app to explain, summarize, or translate it with DeepSeek Harness — answered in a native always-on-top overlay (draggable, resizable). · DeepSeek Harness 划词工具：任意应用里选中文字即在锚点右下角弹出菜单，用 Harness 解释/总结/翻译（自动带上选区所在的上下文段落），流式落在零依赖的原生置顶浮窗里（可拖动/缩放）。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -38,22 +38,24 @@
     "deepseek-harness",
     "translate",
     "explain",
+    "summarize",
     "selection",
     "text-selection",
     "overlay",
     "windows",
     "划词",
     "翻译",
-    "解释"
+    "解释",
+    "总结"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fyisgod/dsh-selection-tools.git"
+    "url": "git+https://github.com/germyGao/dsh-selection-tools.git"
   },
-  "homepage": "https://github.com/fyisgod/dsh-selection-tools#readme",
+  "homepage": "https://github.com/germyGao/dsh-selection-tools#readme",
   "bugs": {
-    "url": "https://github.com/fyisgod/dsh-selection-tools/issues"
+    "url": "https://github.com/germyGao/dsh-selection-tools/issues"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

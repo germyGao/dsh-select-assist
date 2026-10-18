@@ -154,30 +154,38 @@ function panelState(overrides = {}) {
   }
 }
 
-test('紧凑菜单仍然准确命中两行，留白和旧窗口范围不可误触', () => {
-  assert.deepEqual(MODES.menu, { width: 188, height: 88, radius: 14 })
-  for (const x of [4, 94, 184]) {
-    assert.equal(menuRowAt(x, 4), 0)
-    assert.equal(menuRowAt(x, 43.99), 0)
-    assert.equal(menuRowAt(x, 44), 1)
-    assert.equal(menuRowAt(x, 83.99), 1)
-    assert.equal(menuRowAt(x, 84), -1)
+test('横向胶囊菜单四段都能命中，留白与条外不可误触', () => {
+  // 32 = 上下各 4px 留白 + 28px 段高；328 = 左右各 4px 留白 + 4 段 × 80px。
+  assert.deepEqual(MODES.menu, { width: 328, height: 36, radius: 10 })
+  for (const y of [4, 17.99, 31.99]) {
+    assert.equal(menuRowAt(4, y), 0)
+    assert.equal(menuRowAt(84, y), 1)
+    assert.equal(menuRowAt(164, y), 2)
+    assert.equal(menuRowAt(244, y), 3)
   }
-  for (const [x, y] of [[3, 24], [185, 64], [94, 3], [94, 100], [235, 50]]) assert.equal(menuRowAt(x, y), -1)
+  // 段边界：左闭右开，落到下一段。
+  assert.equal(menuRowAt(83.99, 18), 0)
+  assert.equal(menuRowAt(84, 18), 1)
+  assert.equal(menuRowAt(163.99, 18), 1)
+  assert.equal(menuRowAt(164, 18), 2)
+  assert.equal(menuRowAt(243.99, 18), 2)
+  assert.equal(menuRowAt(244, 18), 3)
+  // 条外 / 留白 / 第五段范围都是 -1。
+  for (const [x, y] of [[3, 18], [324, 18], [324.5, 18], [84, 3], [84, 33], [84, 40]]) assert.equal(menuRowAt(x, y), -1)
 })
 
 test('菜单高亮绘制区域与命中区域在不同 DPI 下保持一致', () => {
   for (const dark of [false, true]) {
     for (const scale of [1, 1.25, 1.5, 2]) {
-      for (const hover of [0, 1]) {
+      for (const hover of [0, 1, 2, 3]) {
         const painter = recordingPainter()
         paintMenu(painter, MODES.menu.width * scale, MODES.menu.height * scale, { dark, hover }, scale)
-        const highlight = painter.calls.find(({ method, args }) => method === 'fillRoundRect' && args[3] === 40 * scale)
+        const highlight = painter.calls.find(({ method, args }) => method === 'fillRoundRect' && args[3] === 28 * scale)
         assert.ok(highlight)
         const [x, y, w, h] = highlight.args
         assert.equal(menuRowAt((x + w / 2) / scale, (y + h / 2) / scale), hover)
         const labels = painter.calls.filter(({ method }) => method === 'text').map(({ args }) => args[0])
-        assert.deepEqual(labels, ['解释选文', '翻译选文'])
+        assert.deepEqual(labels, ['解释', '总结', '翻译', '朗读'])
       }
     }
   }
@@ -259,8 +267,9 @@ test('长回答滚动到底部仍使用实际可视高度，不被状态栏内�
   const painter = recordingPainter()
   paintPanel(painter, W, H, state, 1)
   const lastParagraph = painter.calls.filter(({ method, args }) => method === 'paragraph' && args[4].dryRun !== true).at(-1)
-  const bottom = H - PANEL.footerHeight - 6
-  assert.ok(lastParagraph.args[2] + 22 <= bottom)
+  // 最后一段的底边必须落在页脚上沿之内：用该段自己的行高算，别钉死旧字号。
+  const lineHeight = lastParagraph.args[4].lineHeight
+  assert.ok(lastParagraph.args[2] + lineHeight <= H - PANEL.footerHeight)
 })
 
 /** 辅助字号较小，深浅主题的文字和蓝色强调都需要足够对比度。 */

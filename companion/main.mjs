@@ -216,6 +216,44 @@ let deciding = false
  *
  * @param press - 手势按下事件（`{ x, y, time, second }`，见 gesture.mjs）。
  */
+/**
+ * 用户还没手动拖过回答窗时，首次弹窗默认放在选区旁边（类似豆包）。
+ *
+ * 优先右下方；空间不够就换上方、左侧或右上方，尽量不遮挡选中文字。
+ *
+ * @param {object} opts
+ * @param {object} opts.workArea - 当前显示器工作区矩形。
+ * @param {object|null} opts.selection - 选区锚点 `{x,y}`（松开时的坐标，物理像素）。
+ * @param {number} opts.width - 回答窗宽度。
+ * @param {number} opts.height - 回答窗高度。
+ * @param {number} opts.gap - 与选区留多少像素空隙。
+ * @returns {object} 默认位置 `{x,y}`。
+ */
+function placePanelBySelection({ workArea, selection, width, height, gap }) {
+  if (selection === null || selection === undefined) {
+    return { x: workArea.right - width - 20, y: workArea.bottom - height - 20 }
+  }
+  const sx = selection.x
+  const sy = selection.y
+  // 候选位置：右下、右上、左下、左上
+  const candidates = [
+    { x: sx + gap, y: sy + gap },         // 右下
+    { x: sx + gap, y: sy - height - gap }, // 右上
+    { x: sx - width - gap, y: sy + gap },  // 左下
+    { x: sx - width - gap, y: sy - height - gap }, // 左上
+  ]
+  // 找能完整放进工作区、且最靠左上角的候选（视觉上自然跟随阅读流）
+  const fits = candidates.filter((p) =>
+    p.x >= workArea.left &&
+    p.x + width <= workArea.right &&
+    p.y >= workArea.top &&
+    p.y + height <= workArea.bottom
+  )
+  if (fits.length > 0) return fits[0]
+  // 全放不下：贴到右下角的兜底位置
+  return { x: workArea.right - width - 20, y: workArea.bottom - height - 20 }
+}
+
 function startPressProbe(press) {
   if (contextReader === null || !PRESS_PROBE) {
     pressSnapshot = null
@@ -237,19 +275,44 @@ function startPressProbe(press) {
     /** 探针结果：`undefined` = 还没回来。 */
     result: undefined,
     pending: null,
+    /**
+     * 读数**到手那一刻**指针离按下点有多远（像素；`null` = 量不到）。
+     *
+     * 为什么要在这一刻量：按下快照是异步读的，探针发出去不等于读到的是那一刻的状态。
+     * 浏览器里 UIA 首查常要 100ms 以上，一次 80px 的拖选只要 150ms——读数回来时用户早拖完
+     * 了，于是"按下那一刻"读到的是**这次手势自己选出来的文字**，跟松开时一模一样，被判成
+     * unchanged-selection，菜单再也不出来（见 policy.mjs 的 PRESS_SETTLE_SLOP）。
+     * 指针还没动 → 读数再慢也代表按下时的状态；指针已经跑出去 → 这张快照作废。
+     */
+    driftPx: null,
   }
   snapshot.pending = contextReader.probe({ x: press.x, y: press.y }, { retries: 0 })
   pressSnapshot = snapshot
   void snapshot.pending
     .then((result) => {
+      snapshot.driftPx = driftFrom(snapshot)
       snapshot.result = result ?? null
       state.lastPressProbe = summarizePress(snapshot)
     })
     .catch((error) => {
+      snapshot.driftPx = driftFrom(snapshot)
       snapshot.result = null
       state.lastPressProbe = summarizePress(snapshot)
       reportError('press-probe', error)
     })
+}
+
+/** 指针现在离按下点有多远（像素）；量不到返回 null（当作"没量到"，仍按可信处理）。 */
+function driftFrom(snapshot) {
+  if (api === null || typeof api.GetCursorPos !== 'function') return null
+  const point = {}
+  try {
+    if (!api.GetCursorPos(point)) return null
+  } catch {
+    return null
+  }
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return null
+  return Math.round(Math.hypot(point.x - snapshot.x, point.y - snapshot.y))
 }
 
 /** 按下快照的摘要（/status 与 recentDecisions 用；只截一小段选区文字）。 */
@@ -262,6 +325,10 @@ function summarizePress(snapshot) {
     state: result === undefined ? 'reading' : result === null ? 'none' : 'ready',
     source: typeof result?.source === 'string' ? result.source : '',
     selectionLength: selection.length,
+    /** 读数到手那一刻指针离按下点多远（像素）：太远说明这张快照拍晚了（见 driftFrom）。 */
+    driftPx: Number.isFinite(snapshot.driftPx) ? snapshot.driftPx : null,
+    /** 选区矩形数组（只传前 6 个，够判断"动没动"就行；null = 没读到）。 */
+    rects: Array.isArray(result?.rects) ? result.rects.slice(0, 6) : null,
     /** 缩略（跟 lastMenuSelection 一样只留一小段，够看出"拖的是什么"就行）。 */
     selection: selection.slice(0, 120),
   }
@@ -544,7 +611,13 @@ function applyMainMode(mode) {
   const preferred = panel.size ?? { width: css.width * scale, height: css.height * scale }
   const width = Math.min(Math.round(preferred.width), Math.max(240, work.right - work.left))
   const height = Math.min(Math.round(preferred.height), Math.max(180, work.bottom - work.top))
-  const base = panel.position ?? { x: work.right - width - 20, y: work.bottom - height - 20 }
+  const base = panel.position ?? placePanelBySelection({
+    workArea: work,
+    selection: anchor,
+    width,
+    height,
+    gap: 12,
+  })
   const x = Math.min(Math.max(base.x, work.left), Math.max(work.left, work.right - width))
   const y = Math.min(Math.max(base.y, work.top), Math.max(work.top, work.bottom - height))
 
@@ -604,7 +677,7 @@ const menuWindow = api !== null && gdi !== null
         const scale = menuWindow.scale()
         const row = menuRowAt(x / scale, y / scale)
         void data
-        if (row >= 0) runMenuAction(row === 0 ? 'explain' : 'translate')
+        if (row >= 0) runMenuAction(menuActionOf(row))
         return true
       },
       onError(error) {
@@ -726,20 +799,25 @@ async function waitFor(promise, ms) {
  * 结论晚几十毫秒（探针一回来就出菜单），而不是"菜单变慢"。
  *
  * @param previous - 上一次菜单收起时绑的那段文字（见 policy.mjs 的 menuDecision）。
- * @param pressPending - "按下那一刻"那张快照的在途 promise（可能已经回来了，也可能是 null
- *   = 没拍/关掉了）；它只用来回答"这次手势有没有选出新东西"。
+ * @param pressSnapshot - "按下那一刻"那张快照（`{ at, x, y, pending, result, driftPx }`，见
+ *   startPressProbe）；没拍/关掉了传 null。它只用来回答"这次手势有没有选出新东西"，
+ *   其中的 `driftPx`（读数到手时指针离按下点多远）用来剔掉"拍晚了"的快照——浏览器里
+ *   UIA 首查慢，拖完才回来的读数会把这次手势自己选出来的文字当成"按下就已经选着"。
  * @returns `{ open, reason }`（见 policy.mjs 的 menuDecision）。
  */
-async function decideMenu(pending, budgetMs, previous, kind, pressPending = null) {
+async function decideMenu(pending, budgetMs, previous, kind, pressSnapshot = null) {
   // `MENU_DECIDE_MS=0` 是"手势一到就弹、不做任何过滤"的逃生舱：连剪贴板核实都不要走。
   if (budgetMs <= 0) return unknownFallback(kind)
   if (contextReader === null) return menuDecision(null, previous, { kind })
   // 按下快照通常早就回来了（它在按下那一刻就发出去了），这一步几乎不花时间；只给
   // PRESS_WAIT_MS 这么多宽限——超时就当没拍到（少一条判据，不拦这次划词）。
+  const pressPending = pressSnapshot?.pending ?? null
   const pressResult = pressPending === null || pressPending === undefined
     ? null
     : await waitFor(pressPending, Math.min(budgetMs, PRESS_WAIT_MS))
-  const pressProbe = pressResult === 'timeout' ? null : pressResult
+  const pressProbe = pressResult === 'timeout' || pressResult === null || pressResult === undefined
+    ? null
+    : { ...pressResult, driftPx: snapshotDrift(pressSnapshot) }
   const first = await waitFor(pending, budgetMs)
   if (first !== 'timeout') return menuDecision(first, previous, { kind, pressProbe })
   const grace = Math.min(1000, budgetMs * 3)
@@ -747,6 +825,12 @@ async function decideMenu(pending, budgetMs, previous, kind, pressPending = null
   // 宽限期也用完：还是读不到 → open 为 null（交给剪贴板核实，见 confirmByClipboard）。
   if (second === 'timeout') return menuDecision(null, previous, { kind, reason: 'timeout' })
   return menuDecision(second, previous, { kind, pressProbe })
+}
+
+/** 快照上量到的"读数到手时指针离按下点多远"（没量到给 null，policy 那边按可信处理）。 */
+function snapshotDrift(pressSnapshot) {
+  const drift = Number(pressSnapshot?.driftPx)
+  return Number.isFinite(drift) ? drift : null
 }
 
 /**
@@ -1018,6 +1102,12 @@ function runMenuAction(action) {
   const selection = menu.selection
   hideMenu('item-click')
   if (selection === null) return
+  // 朗读是"立等可取"的快速动作：不走 LLM 队列、不开主窗，直接读选中的文字。
+  // 等待 UIA/剪贴板回填文本（划词时 text 可能还是空的）。
+  if (action === 'speak') {
+    void speakSelection(selection)
+    return
+  }
   if (menuRunQueue === null) {
     menuRunQueue = createLatestQueue({
       run: (job, seq) => beginFromMenu(job.action, job.selection, () => menuRunQueue.isLatest(seq)),
@@ -1028,8 +1118,72 @@ function runMenuAction(action) {
 }
 
 /**
- * 发起一轮解释/翻译，流式画到回答窗口。
- * @param action - 解释 / 翻译。
+ * 朗读选中的文字：等到 UIA/剪贴板把文本回填到 selection.text 后再触发 SAPI。
+ * 若 1.5 秒内还没回填，就用现成的内容尝试一次；再不行就放弃。
+ */
+async function speakSelection(selection) {
+  const text = await waitForSelectionText(selection, 1500)
+  if (text === '') {
+    setCopyFeedback('未能读取选中文本')
+    return
+  }
+  // 复用现有朗读器：直接喂文本，不再需要走 ui.source。
+  const instance = ensureSpeaker()
+  if (instance === null || !instance.available()) {
+    setCopyFeedback('朗读不可用')
+    return
+  }
+  if (ui.speaking) {
+    instance.stop()
+    ui.speaking = false
+    refreshMain()
+    return
+  }
+  const started = instance.speak(text)
+  ui.speaking = started
+  refreshMain()
+  if (started) watchSpeaking()
+}
+
+/** 等到 selection.text 变成非空字符串（或超时）。 */
+function waitForSelectionText(selection, timeoutMs) {
+  return new Promise((resolve) => {
+    const current = typeof selection.text === 'string' ? selection.text.trim() : ''
+    if (current !== '') {
+      resolve(current)
+      return
+    }
+    const start = Date.now()
+    const timer = setInterval(() => {
+      const text = typeof selection.text === 'string' ? selection.text.trim() : ''
+      if (text !== '') {
+        clearInterval(timer)
+        resolve(text)
+        return
+      }
+      if (Date.now() - start >= timeoutMs) {
+        clearInterval(timer)
+        resolve('')
+      }
+    }, 80)
+    timer.unref?.()
+  })
+}
+
+/**
+ * 菜单行号 → 动作。菜单从上到下是：解释、总结、翻译。
+ * @param row - `menuRowAt` 给出的行号（0/1/2）。
+ */
+function menuActionOf(row) {
+  if (row === 1) return 'summarize'
+  if (row === 2) return 'translate'
+  if (row === 3) return 'speak'
+  return 'explain'
+}
+
+/**
+ * 发起一轮解释/总结/翻译，流式画到回答窗口。
+ * @param action - 解释 / 总结 / 翻译。
  * @param selection - 这一次要处理哪段选区（含已解析好的 text 与 context）。
  */
 function startRun(action, selection = state.selection) {
@@ -1166,7 +1320,7 @@ async function handleGesture(gesture, isCurrent) {
   let decision
   let confirm = null
   try {
-    decision = await decideMenu(pending, MENU_DECIDE_MS, state.lastMenuSelection, gesture.kind, gesture.press?.pending ?? null)
+    decision = await decideMenu(pending, MENU_DECIDE_MS, state.lastMenuSelection, gesture.kind, gesture.press ?? null)
     if (decision.open === null) {
       // UIA 说不出话（WPS/Office 的 Qt 版这类不暴露文档文本的应用）：用剪贴板核实一次
       // "到底有没有选中文字"——真选中了会复制出文字，拖动形状/窗口则什么都复制不出来。
@@ -1374,7 +1528,12 @@ const server = createServer((req, res) => {
         const result = await contextReader.probe(point, { retries, press })
         // 按下那一刻读到的是什么：`pressSelection` 显式给（不带就是"没拍到"那一档），
         // 用来复现"拖动一个已选中的元素"（unchanged-selection）与"真的拖选了文字"这两路。
-        const pressProbe = typeof body.pressSelection === 'string' ? { selection: body.pressSelection } : null
+        // `pressDriftPx` 对应真实时序里"读数到手那一刻指针离按下点多远"，用来复现"拍晚了"
+        // 那条（浏览器里 UIA 首查慢，读数回来时已经拖完）。
+        const drift = Number(body.pressDriftPx)
+        const pressProbe = typeof body.pressSelection === 'string'
+          ? { selection: body.pressSelection, ...(Number.isFinite(drift) ? { driftPx: drift } : {}) }
+          : null
         const provisional = menuDecision(result, '', { kind: typeof body.kind === 'string' ? body.kind : '', pressProbe })
         // `confirm: true` → UIA 判不了时**真的**跑一次剪贴板核实（会注入 Ctrl+C，仅排障用）；
         // 不传的话 open 为 null 只是"待核实"，不会碰剪贴板。
@@ -1440,7 +1599,7 @@ const server = createServer((req, res) => {
         const cssY = Number(body.y ?? 0)
         if (target === 'menu') {
           const row = menuRowAt(cssX, cssY)
-          if (row >= 0) runMenuAction(row === 0 ? 'explain' : 'translate')
+          if (row >= 0) runMenuAction(menuActionOf(row))
           respondJson(res, 200, { ok: true, target, row })
           return
         }
