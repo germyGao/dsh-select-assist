@@ -1,5 +1,6 @@
 {
   "name": "dsh-selection-tools",
+  "displayName": "划词助手",
   "version": "0.9.0",
   "description": "DSH plugin: select text in any Windows app to explain, summarize, or translate it with DeepSeek Harness — answered in a native always-on-top overlay (draggable, resizable). · DeepSeek Harness 划词工具：任意应用里选中文字即在锚点右下角弹出菜单，用 Harness 解释/总结/翻译（自动带上选区所在的上下文段落），流式落在零依赖的原生置顶浮窗里（可拖动/缩放）。",
   "type": "module",
@@ -51,11 +52,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/germyGao/dsh-selection-tools.git"
+    "url": "git+https://github.com/germyGao/select-assist.git"
   },
-  "homepage": "https://github.com/germyGao/dsh-selection-tools#readme",
+  "homepage": "https://github.com/germyGao/select-assist#readme",
   "bugs": {
-    "url": "https://github.com/germyGao/dsh-selection-tools/issues"
+    "url": "https://github.com/germyGao/select-assist/issues"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

@@ -196,7 +196,7 @@ export function panelHitZone(x, y, state, width = MODES.panel.width, height = MO
 
 // ---------------------------------------------------------------- 绘制
 
-/** 画划词菜单（横向胶囊条，豆包风格）。 */
+/** 画划词菜单（横向胶囊条）。 */
 export function paintMenu(painter, width, height, state, scale) {
   const p = palette(state.dark)
   const s = scale

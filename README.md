@@ -1,4 +1,6 @@
-<h1 align="center">dsh-selection-tools</h1>
+<h1 align="center">划词助手</h1>
+
+<p align="center"><sub>SelectAssist · 包名 <code>dsh-selection-tools</code> · for DeepSeek Harness</sub></p>
 
 <p align="center">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4d6bfe?style=flat-square">
@@ -12,9 +14,16 @@ Select text in any Windows app — the Harness model explains, summarizes, or tr
 
 ---
 
+> **来源** — 本项目基于 [fyisgod/dsh-selection-tools](https://github.com/fyisgod/dsh-selection-tools)（MIT）扩展而来，
+> 新增了总结能力、直连引擎、朗读与四段划词菜单，并修复了划词菜单偶发不弹、回答窗位置固定的问题。
+> 原项目的版权与许可声明保留在 [LICENSE](LICENSE) 中。
+>
+> **灵感来源** — 划词即问这种交互形式参考了市面上已有的同类产品（例如豆包的划词功能），
+> 本项目是独立的开源实现，与字节跳动无任何隶属或合作关系，未使用其代码或素材。
+
 > 🌐 **English** — an official-form DSH **bundle plugin** for Windows: select text in *any* app and explain, summarize, or translate it with DeepSeek Harness. The menu pops the moment you select — **selecting never touches your clipboard**: the selected text and its surrounding paragraph are read with UI Automation, and the clipboard (one injected Ctrl+C) is only used as a fallback *after* you click a menu item. The answer renders in a native GDI+ always-on-top window — no browser, no extra process, no runtime dependency. Quickstart:
 > ```sh
-> dsh plugin --profile web add "github:germyGao/dsh-selection-tools"
+> dsh plugin --profile web add "github:germyGao/select-assist"
 > ```
 > Restart `dsh web` afterwards. The rest of this README is in Chinese.
 
@@ -101,7 +110,7 @@ Select text in any Windows app — the Harness model explains, summarizes, or tr
 
 ```sh
 # GitHub 一行装（推荐）
-dsh plugin --profile web add "github:germyGao/dsh-selection-tools"
+dsh plugin --profile web add "github:germyGao/select-assist"
 
 # 本地检出目录
 cd <本仓库路径>

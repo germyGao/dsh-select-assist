@@ -90,7 +90,7 @@ export function createGdi(koffi) {
   let token = 0
   let started = false
 
-  /** 建立字体族（一次）：优先鸿蒙字体（豆包同款），再回落雅黑/系统无衬线。 */
+  /** 建立字体族（一次）：优先鸿蒙字体（屏显可读性好），再回落雅黑/系统无衬线。 */
   function ensureFamilies() {
     if (families !== null) return families
     const build = (names) => {
