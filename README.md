@@ -9,8 +9,8 @@
   <img alt="deps" src="https://img.shields.io/badge/runtime%20deps-none-4d6bfe?style=flat-square">
 </p>
 
-<p align="center">划词即问：在电脑上任意应用里选中文字，用 DeepSeek Harness 自己的模型解释、总结或翻译，结果落在可拖动、可缩放的置顶浮窗里。<br>
-Select text in any Windows app — the Harness model explains, summarizes, or translates it in a native, draggable, always-on-top overlay.</p>
+<p align="center">划词即问：在电脑上任意应用里选中文字，用 DeepSeek Harness 自己的模型解释、总结或翻译，或者直接朗读出来，结果落在可拖动、可缩放的置顶浮窗里。<br>
+Select text in any Windows app — the Harness model explains, summarizes, or translates it, or reads it aloud, in a native, draggable, always-on-top overlay.</p>
 
 ---
 
@@ -20,7 +20,7 @@ Select text in any Windows app — the Harness model explains, summarizes, or tr
 >
 > 本项目是独立的开源实现，未使用其代码或素材。
 
-> 🌐 **English** — an official-form DSH **bundle plugin** for Windows: select text in *any* app and explain, summarize, or translate it with DeepSeek Harness. The menu pops the moment you select — **selecting never touches your clipboard**: the selected text and its surrounding paragraph are read with UI Automation, and the clipboard (one injected Ctrl+C) is only used as a fallback *after* you click a menu item. The answer renders in a native GDI+ always-on-top window — no browser, no extra process, no runtime dependency. Quickstart:
+> 🌐 **English** — an official-form DSH **bundle plugin** for Windows: select text in *any* app and explain, summarize, translate, or read it aloud with DeepSeek Harness. The menu pops the moment you select — **selecting never touches your clipboard**: the selected text and its surrounding paragraph are read with UI Automation, and the clipboard (one injected Ctrl+C) is only used as a fallback *after* you click a menu item. The answer renders in a native GDI+ always-on-top window — no browser, no extra process, no runtime dependency. Quickstart:
 > ```sh
 > dsh plugin --profile web add "github:germyGao/dsh-select-assist"
 > ```
@@ -37,7 +37,7 @@ Select text in any Windows app — the Harness model explains, summarizes, or tr
 - **翻译会分情况给结果**（由翻译规则驱动，可改）：选中的是**词/短语**时按词典条目输出——**最佳翻译**、**音标**（英/美）、**其他翻译**（带词性与使用场景）、关键术语或缩写再给**术语说明**；选中的是**句子/段落**时先给整段译文，若句中出现关键术语、缩写或专有名词，再追加**关键术语**小节逐条解释。
 - **自动带上上下文**（像知乎的划词解释）：手势落下后立刻用 UI Automation 读"选区 + 选区所在的那个段落"（一次读完），点解释/总结/翻译时连同上文一起交给模型，回答落在语境里而不是孤立地解释一个词；读不到（应用不暴露 UIA 文本）就安静降级为只送选区，再读不到才退到剪贴板。
 - **页内划词**（保底路径）：同一套菜单/悬浮窗也注册在 DSH 的 `shell.overlay` 槽位里；系统级能力不可用时（没装 koffi、被显式关闭）自动接管，DSH 页面内划词照常可用。页内这条路同样"一份选区只弹一次"（用选区的起点/终点位置 + 文本当签名，`selectionchange` 一变就作废）。
-- **设置页**：在 DSH 的「设置 → 划词工具」里改默认翻译语言、反向目标语言、解释/总结/翻译规则（直接进提示词）、以及三种动作各自使用的模型 + 推理等级；改完立即生效（存在 `DSH_HOME/dsh-select-assist.json`）。
+- **设置页**：在 DSH 的「设置 → 划词工具」里改默认翻译语言、反向目标语言、解释/总结/翻译规则（直接进提示词）、朗读的语速与音量，以及三种动作各自使用的模型 + 推理等级；改完立即生效（存在 `DSH_HOME/dsh-select-assist.json`）。朗读参数由伴生进程直接读同一个设置文件，改完下一句就按新语速念，不用重启。
 - **两种回答引擎**（设置页 `engine` 切换）：
   - `direct`（默认，快）：插件直接用宿主的 `llm` 服务流式调一次模型，**不建 DSH 会话**。首字延迟约 1.2–1.3 秒、整段完成 1.5–4.5 秒，且是真流式（首字到达即渲染，实测一段 490 delta 均匀分布在 1.3–4.4 秒）。代价：没有系统提示、没有工具、划词记录不进侧栏，不能点进去追问。
   - `agent`（慢但可追问）：用 `ctx.agents` 跑一轮**真实会话回合**（同一套 agent loop、系统提示、工具、模型 route），每次划词都是一条全新会话，**跑完不归档**，会话出现在侧栏「未分组」里，可以点进去追问。代价是首字要等整轮跑完（4.3–5.5 秒）。
@@ -95,7 +95,7 @@ Select text in any Windows app — the Harness model explains, summarizes, or tr
 | 原生浮层（伴生进程） | 自己创建 `WS_POPUP` + `WS_EX_LAYERED|TOPMOST|TOOLWINDOW|NOACTIVATE` 窗口，GDI+ 画一帧到 32bpp DIB，`UpdateLayeredWindow` 带 alpha 贴屏；无边框、置顶、不抢焦点。 |
 | 交互 | 标题栏拖动、**四边四角缩放**（八个方向都能用鼠标拉，指针会变成对应的双箭头）、菜单两项 hover/点击、回答窗口的复制/关闭/停止、滚轮滚动、全局 Esc 收起菜单。 |
 | 选区 + 上下文（伴生进程） | 手势落下后用 UI Automation 一次读完**选区**与选区所在的**段落**（TextUnit_Paragraph）；候选元素按"点上的元素 → 逐级祖先 → 焦点元素 → 逐级祖先"找（浏览器里点上的常常只是外壳），**第一次读不到会等 160ms 再读**（Chromium 这类应用是被 UIA 问到才打开无障碍树，冷启动第一次必失败——实测 DSH 桌面端自己的 WebView2 窗口也一样）；读不到/超时一律按"没有选区"处理，交给点菜单项之后的解析链继续。 |
-| 朗读（伴生进程） | 进程内 COM 调 `ISpVoice`（`Speak` 异步 + `WaitUntilDone(0)` 轮询"还在读吗"），读的是选中的原文；面板关闭、开始新一轮、再点一次都会停。 |
+| 朗读（伴生进程） | 进程内 COM 调 `ISpVoice`（`Speak` 异步 + `WaitUntilDone(0)` 轮询"还在读吗"），读的是选中的原文；面板关闭、开始新一轮、再点一次都会停。语速与音量取自设置页（伴生进程每次开口前重读 `dsh-select-assist.json`，改完当句就生效）。 |
 | `POST /api/dsh-select-assist/run` | 同源 JSON 进、**SSE 出**（`session`/`delta`/`done`/`error`）。`engine=direct`（默认）走 `ctx.llm` 直连流式，`engine=agent` 走真实 agent 回合。 |
 | `POST /api/dsh-select-assist/stop` | 停止当前一轮：直连请求走 `AbortController`，agent 请求走官方 `agent.cancel({ kind: 'user' })`。 |
 | `GET /api/dsh-select-assist/system/status` / `POST .../system/restart` | 伴生进程状态 / 重启（诊断用）；重启会**等老进程真的退出**再拉起新的，不留幽灵进程。 |

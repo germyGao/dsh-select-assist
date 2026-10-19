@@ -29,7 +29,7 @@
     "build": "tsdown",
     "dev": "tsdown --watch",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/gesture.test.mjs test/panel-zone.test.mjs test/policy.test.mjs test/selection.test.mjs test/companion-manager.test.mjs",
+    "test": "node --experimental-strip-types --test test/gesture.test.mjs test/panel-zone.test.mjs test/policy.test.mjs test/selection.test.mjs test/companion-manager.test.mjs test/speak-tuning.test.mjs",
     "verify:screenshots": "node scripts/verify-screenshots.mjs"
   },
   "keywords": [

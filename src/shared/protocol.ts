@@ -162,6 +162,10 @@ export interface SelectionToolsSettings {
   explainModel: ModelSeat | null
   /** 总结用的模型座位；null = 跟随当前会话 / 部署默认。 */
   summarizeModel: ModelSeat | null
+  /** 朗读语速（-10..10，0 为 SAPI 默认，负数更慢）。 */
+  speakRate: number
+  /** 朗读音量（0..100）。 */
+  speakVolume: number
 }
 
 /** 解释规则默认文本。 */
@@ -201,6 +205,14 @@ export const DEFAULT_SUMMARIZE_RULES = [
   '- 这是一次独立请求：只总结选中的文本，不要提及或评论任何先前的对话内容。',
 ].join('\n')
 
+/** 默认朗读语速（SAPI 的 -10..10；-1 比默认略慢，中文听起来更从容）。 */
+export const DEFAULT_SPEAK_RATE = -1
+/** 默认朗读音量（0..100）。 */
+export const DEFAULT_SPEAK_VOLUME = 100
+/** 语速/音量的合法区间。 */
+export const SPEAK_RATE_RANGE = { min: -10, max: 10 } as const
+export const SPEAK_VOLUME_RANGE = { min: 0, max: 100 } as const
+
 /** 默认设置。 */
 export const DEFAULT_SETTINGS: SelectionToolsSettings = {
   engine: 'direct',
@@ -212,6 +224,8 @@ export const DEFAULT_SETTINGS: SelectionToolsSettings = {
   translateModel: null,
   explainModel: null,
   summarizeModel: null,
+  speakRate: DEFAULT_SPEAK_RATE,
+  speakVolume: DEFAULT_SPEAK_VOLUME,
 }
 
 /** 规则文本上限（避免把提示词撑爆）。 */
@@ -253,6 +267,11 @@ export function normalizeSettings(input: unknown): SelectionToolsSettings {
     const effort = typeof candidate.reasoningEffort === 'string' ? candidate.reasoningEffort.trim() : ''
     return { provider, model, ...(effort === '' ? {} : { reasoningEffort: effort }) }
   }
+  const number = (value: unknown, fallback: number, range: { min: number; max: number }): number => {
+    const parsed = typeof value === 'number' ? value : Number.NaN
+    if (!Number.isFinite(parsed)) return fallback
+    return Math.max(range.min, Math.min(range.max, Math.round(parsed)))
+  }
   return {
     engine: raw.engine === 'agent' ? 'agent' : 'direct',
     targetLanguage: language(raw.targetLanguage, DEFAULT_SETTINGS.targetLanguage),
@@ -263,5 +282,7 @@ export function normalizeSettings(input: unknown): SelectionToolsSettings {
     translateModel: seat(raw.translateModel),
     explainModel: seat(raw.explainModel),
     summarizeModel: seat(raw.summarizeModel),
+    speakRate: number(raw.speakRate, DEFAULT_SETTINGS.speakRate, SPEAK_RATE_RANGE),
+    speakVolume: number(raw.speakVolume, DEFAULT_SETTINGS.speakVolume, SPEAK_VOLUME_RANGE),
   }
 }

@@ -13,8 +13,9 @@
  * 4. **跑 agent**：直接调用 DSH 插件的 /run 路由（SSE），把流式文本画到回答窗口上。
  */
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { createContextReader } from './context.mjs'
@@ -500,12 +501,51 @@ let copyFeedbackTimer = null
 let speaker = null
 /** 朗读状态轮询定时器。 */
 let speakingTimer = null
+/** 上次套用到朗读器上的语速/音量（换了才重新 set，省得每次朗读都打一趟 COM）。 */
+let appliedTuning = null
+
+/**
+ * 读用户调的朗读语速/音量。
+ *
+ * 伴生进程是独立进程，拿不到宿主侧的内存设置，所以直接读同一个文件
+ * （`DSH_HOME` 优先，否则 `~/.dsh`，文件名与 src/settings.ts 一致）。
+ * 读不到就返回 null，由朗读器自己的默认值兜底。
+ */
+function readSpeakTuning() {
+  try {
+    const home = typeof process.env.DSH_HOME === 'string' && process.env.DSH_HOME !== ''
+      ? process.env.DSH_HOME
+      : join(homedir(), '.dsh')
+    const raw = readFileSync(join(home, 'dsh-select-assist.json'), 'utf8')
+    const parsed = JSON.parse(raw)
+    const rate = Number(parsed?.speakRate)
+    const volume = Number(parsed?.speakVolume)
+    return {
+      rate: Number.isFinite(rate) ? Math.max(-10, Math.min(10, Math.round(rate))) : -1,
+      volume: Number.isFinite(volume) ? Math.max(0, Math.min(100, Math.round(volume))) : 100,
+    }
+  } catch {
+    return null
+  }
+}
+
+/** 把设置里的语速/音量套到朗读器上（值变了才打 COM）。 */
+function applySpeakTuning(instance) {
+  const tuning = readSpeakTuning()
+  if (tuning === null) return
+  const key = tuning.rate + '/' + tuning.volume
+  if (appliedTuning === key) return
+  appliedTuning = key
+  instance.setRate?.(tuning.rate)
+  instance.setVolume?.(tuning.volume)
+}
 
 /** 懒建朗读器。 */
 function ensureSpeaker() {
   if (speaker !== null) return speaker
   try {
     speaker = createSpeaker(api.koffi)
+    if (speaker !== null) applySpeakTuning(speaker)
   } catch (error) {
     reportError('speech', error)
     speaker = null
@@ -545,6 +585,7 @@ function toggleSpeak() {
   }
   const text = ui.source
   if (text === '') return
+  applySpeakTuning(instance)
   const started = instance.speak(text)
   ui.speaking = started
   refreshMain()
@@ -1139,6 +1180,7 @@ async function speakSelection(selection) {
     refreshMain()
     return
   }
+  applySpeakTuning(instance)
   const started = instance.speak(text)
   ui.speaking = started
   refreshMain()
