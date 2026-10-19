@@ -22,7 +22,7 @@ Select text in any Windows app — the Harness model explains, summarizes, or tr
 
 > 🌐 **English** — an official-form DSH **bundle plugin** for Windows: select text in *any* app and explain, summarize, or translate it with DeepSeek Harness. The menu pops the moment you select — **selecting never touches your clipboard**: the selected text and its surrounding paragraph are read with UI Automation, and the clipboard (one injected Ctrl+C) is only used as a fallback *after* you click a menu item. The answer renders in a native GDI+ always-on-top window — no browser, no extra process, no runtime dependency. Quickstart:
 > ```sh
-> dsh plugin --profile web add "github:germyGao/select-assist"
+> dsh plugin --profile web add "github:germyGao/dsh-select-assist"
 > ```
 > Restart `dsh web` afterwards. The rest of this README is in Chinese.
 
@@ -109,7 +109,7 @@ Select text in any Windows app — the Harness model explains, summarizes, or tr
 
 ```sh
 # GitHub 一行装（推荐）
-dsh plugin --profile web add "github:germyGao/select-assist"
+dsh plugin --profile web add "github:germyGao/dsh-select-assist"
 
 # 本地检出目录
 cd <本仓库路径>

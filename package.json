@@ -52,11 +52,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/germyGao/select-assist.git"
+    "url": "git+https://github.com/germyGao/dsh-select-assist.git"
   },
-  "homepage": "https://github.com/germyGao/select-assist#readme",
+  "homepage": "https://github.com/germyGao/dsh-select-assist#readme",
   "bugs": {
-    "url": "https://github.com/germyGao/select-assist/issues"
+    "url": "https://github.com/germyGao/dsh-select-assist/issues"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
