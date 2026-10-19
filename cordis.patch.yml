@@ -1,9 +1,9 @@
-# dsh-selection-tools bundle patch — 把划词工具挂进 profile 组合。
+# dsh-select-assist bundle patch — 把划词工具挂进 profile 组合。
 #
 # 安装：dsh plugin --profile web add <本包>（npm 包名或本地目录），安装后重启 dsh web。
-# 宿主半边注册 /api/dsh-selection-tools/* 路由（用 Harness 自己的 agent 跑翻译/解释），
+# 宿主半边注册 /api/dsh-select-assist/* 路由（用 Harness 自己的 agent 跑翻译/解释），
 # 浏览器半边往 shell.overlay 注册划词菜单与悬浮窗。
 - insert:
-    - id: dsh-selection-tools
+    - id: dsh-select-assist
       # Node 可解析的包名——必须与 package.json 的 name 一致。
-      name: dsh-selection-tools
+      name: dsh-select-assist

@@ -1,15 +1,15 @@
 /**
  * 跨 host/client 的稳定协议：路由前缀、请求体、SSE 事件。
  *
- * host 半边在 webServer 上注册 `/api/dsh-selection-tools/*` 路由，
+ * host 半边在 webServer 上注册 `/api/dsh-select-assist/*` 路由，
  * 浏览器半边用同源 fetch 调用（POST + SSE 流式返回）。
  */
 
 /** 插件 id：bundle 行 name、client bundle 注册 id、日志标签共用。 */
-export const PLUGIN_ID = 'dsh-selection-tools'
+export const PLUGIN_ID = 'dsh-select-assist'
 
 /** 插件自有 HTTP 路由前缀（host half 注册，client half fetch）。 */
-export const API_PREFIX = '/api/dsh-selection-tools'
+export const API_PREFIX = '/api/dsh-select-assist'
 
 /** 一次划词请求允许的最大字符数（超出直接拒绝，避免意外把整篇文档塞给模型）。 */
 export const MAX_SELECTION_LENGTH = 12000
@@ -142,7 +142,7 @@ export type RunEngine =
   /** 走 Harness 自己的 agent 回合：会建一条真实会话（可在侧栏继续追问），但慢得多。 */
   | 'agent'
 
-/** 插件设置（持久化在 DSH home 下的 dsh-selection-tools.json）。 */
+/** 插件设置（持久化在 DSH home 下的 dsh-select-assist.json）。 */
 export interface SelectionToolsSettings {
   /** 执行路径（默认 direct）。 */
   engine: RunEngine

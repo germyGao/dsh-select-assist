@@ -1,6 +1,6 @@
 <h1 align="center">划词助手</h1>
 
-<p align="center"><sub>SelectAssist · 包名 <code>dsh-selection-tools</code> · for DeepSeek Harness</sub></p>
+<p align="center"><sub>SelectAssist · 包名 <code>dsh-select-assist</code> · for DeepSeek Harness</sub></p>
 
 <p align="center">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4d6bfe?style=flat-square">
@@ -37,7 +37,7 @@ Select text in any Windows app — the Harness model explains, summarizes, or tr
 - **翻译会分情况给结果**（由翻译规则驱动，可改）：选中的是**词/短语**时按词典条目输出——**最佳翻译**、**音标**（英/美）、**其他翻译**（带词性与使用场景）、关键术语或缩写再给**术语说明**；选中的是**句子/段落**时先给整段译文，若句中出现关键术语、缩写或专有名词，再追加**关键术语**小节逐条解释。
 - **自动带上上下文**（像知乎的划词解释）：手势落下后立刻用 UI Automation 读"选区 + 选区所在的那个段落"（一次读完），点解释/总结/翻译时连同上文一起交给模型，回答落在语境里而不是孤立地解释一个词；读不到（应用不暴露 UIA 文本）就安静降级为只送选区，再读不到才退到剪贴板。
 - **页内划词**（保底路径）：同一套菜单/悬浮窗也注册在 DSH 的 `shell.overlay` 槽位里；系统级能力不可用时（没装 koffi、被显式关闭）自动接管，DSH 页面内划词照常可用。页内这条路同样"一份选区只弹一次"（用选区的起点/终点位置 + 文本当签名，`selectionchange` 一变就作废）。
-- **设置页**：在 DSH 的「设置 → 划词工具」里改默认翻译语言、反向目标语言、解释/总结/翻译规则（直接进提示词）、以及三种动作各自使用的模型 + 推理等级；改完立即生效（存在 `DSH_HOME/dsh-selection-tools.json`）。
+- **设置页**：在 DSH 的「设置 → 划词工具」里改默认翻译语言、反向目标语言、解释/总结/翻译规则（直接进提示词）、以及三种动作各自使用的模型 + 推理等级；改完立即生效（存在 `DSH_HOME/dsh-select-assist.json`）。
 - **两种回答引擎**（设置页 `engine` 切换）：
   - `direct`（默认，快）：插件直接用宿主的 `llm` 服务流式调一次模型，**不建 DSH 会话**。首字延迟约 1.2–1.3 秒、整段完成 1.5–4.5 秒，且是真流式（首字到达即渲染，实测一段 490 delta 均匀分布在 1.3–4.4 秒）。代价：没有系统提示、没有工具、划词记录不进侧栏，不能点进去追问。
   - `agent`（慢但可追问）：用 `ctx.agents` 跑一轮**真实会话回合**（同一套 agent loop、系统提示、工具、模型 route），每次划词都是一条全新会话，**跑完不归档**，会话出现在侧栏「未分组」里，可以点进去追问。代价是首字要等整轮跑完（4.3–5.5 秒）。
@@ -72,11 +72,11 @@ Select text in any Windows app — the Harness model explains, summarizes, or tr
 
 ```
 ┌─ DSH 进程 ───────────────────────────────┐      ┌─ 伴生进程（Node + koffi + GDI+） ────────┐
-│ dsh-selection-tools（Cordis 插件）        │      │ 全局鼠标轮询 → 拖选 / 双击手势          │
-│  · /api/dsh-selection-tools/run  (SSE)   │◀─────│ UIA 读选区+段落（不碰剪贴板）            │
-│  · /api/dsh-selection-tools/stop         │ HTTP │ 原生分层窗口：菜单 / 回答窗口            │
+│ dsh-select-assist（Cordis 插件）        │      │ 全局鼠标轮询 → 拖选 / 双击手势          │
+│  · /api/dsh-select-assist/run  (SSE)   │◀─────│ UIA 读选区+段落（不碰剪贴板）            │
+│  · /api/dsh-select-assist/stop         │ HTTP │ 原生分层窗口：菜单 / 回答窗口            │
 │                                          │◀─────│ 点菜单项仍读不到才注入 Ctrl+C 兜底       │
-│  · /api/dsh-selection-tools/system/*     │      │ GDI+ 自绘（圆角卡片、字体、markdown-lite）│
+│  · /api/dsh-select-assist/system/*     │      │ GDI+ 自绘（圆角卡片、字体、markdown-lite）│
 │  · direct: ctx.llm 流式  /  agent: ctx.agents │  └─────────────────────────────────────────┘
 └──────────────────────────────────────────┘
 ```
@@ -96,9 +96,9 @@ Select text in any Windows app — the Harness model explains, summarizes, or tr
 | 交互 | 标题栏拖动、**四边四角缩放**（八个方向都能用鼠标拉，指针会变成对应的双箭头）、菜单两项 hover/点击、回答窗口的复制/关闭/停止、滚轮滚动、全局 Esc 收起菜单。 |
 | 选区 + 上下文（伴生进程） | 手势落下后用 UI Automation 一次读完**选区**与选区所在的**段落**（TextUnit_Paragraph）；候选元素按"点上的元素 → 逐级祖先 → 焦点元素 → 逐级祖先"找（浏览器里点上的常常只是外壳），**第一次读不到会等 160ms 再读**（Chromium 这类应用是被 UIA 问到才打开无障碍树，冷启动第一次必失败——实测 DSH 桌面端自己的 WebView2 窗口也一样）；读不到/超时一律按"没有选区"处理，交给点菜单项之后的解析链继续。 |
 | 朗读（伴生进程） | 进程内 COM 调 `ISpVoice`（`Speak` 异步 + `WaitUntilDone(0)` 轮询"还在读吗"），读的是选中的原文；面板关闭、开始新一轮、再点一次都会停。 |
-| `POST /api/dsh-selection-tools/run` | 同源 JSON 进、**SSE 出**（`session`/`delta`/`done`/`error`）。`engine=direct`（默认）走 `ctx.llm` 直连流式，`engine=agent` 走真实 agent 回合。 |
-| `POST /api/dsh-selection-tools/stop` | 停止当前一轮：直连请求走 `AbortController`，agent 请求走官方 `agent.cancel({ kind: 'user' })`。 |
-| `GET /api/dsh-selection-tools/system/status` / `POST .../system/restart` | 伴生进程状态 / 重启（诊断用）；重启会**等老进程真的退出**再拉起新的，不留幽灵进程。 |
+| `POST /api/dsh-select-assist/run` | 同源 JSON 进、**SSE 出**（`session`/`delta`/`done`/`error`）。`engine=direct`（默认）走 `ctx.llm` 直连流式，`engine=agent` 走真实 agent 回合。 |
+| `POST /api/dsh-select-assist/stop` | 停止当前一轮：直连请求走 `AbortController`，agent 请求走官方 `agent.cancel({ kind: 'user' })`。 |
+| `GET /api/dsh-select-assist/system/status` / `POST .../system/restart` | 伴生进程状态 / 重启（诊断用）；重启会**等老进程真的退出**再拉起新的，不留幽灵进程。 |
 | 页内菜单 + 悬浮窗（客户端） | 注册进 `shell.overlay`；系统级接管时自动让位。 |
 
 > 不注册任何模型可见的工具，也不改官方源码。
@@ -116,27 +116,27 @@ cd <本仓库路径>
 dsh plugin --profile web add .
 
 # npm（发布后）
-dsh plugin --profile web add dsh-selection-tools
+dsh plugin --profile web add dsh-select-assist
 ```
 
 装完**重启 `dsh web`**（或重启承载它的桌面端）生效——bundle 层栈在启动时合成。卸载 / 更新：
 
 ```sh
-dsh plugin --profile web remove dsh-selection-tools
+dsh plugin --profile web remove dsh-select-assist
 dsh plugin --profile web update
 ```
 
 自检：
 
 ```sh
-curl http://127.0.0.1:3080/api/dsh-selection-tools/ping
-curl http://127.0.0.1:3080/api/dsh-selection-tools/system/status   # companion.state 应为 running
+curl http://127.0.0.1:3080/api/dsh-select-assist/ping
+curl http://127.0.0.1:3080/api/dsh-select-assist/system/status   # companion.state 应为 running
 ```
 
 只改伴生进程/浮层时，不必重启 DSH：
 
 ```sh
-curl -X POST http://127.0.0.1:3080/api/dsh-selection-tools/system/restart
+curl -X POST http://127.0.0.1:3080/api/dsh-select-assist/system/restart
 ```
 
 ## 使用
@@ -225,7 +225,7 @@ curl -X POST http://127.0.0.1:3080/api/dsh-selection-tools/system/restart
 - **回答窗口的状态只归它自己**：`showMenu` 里任何一次 `ui.xxx = …` 都会在窗口下一次重绘时生效——早期版本在这里顺手重置了 `ui.source/answer/status`，于是"新划词后点一下窗口"就变成"显示新选中的文字 + 没有文本输出 + 就绪"。现在弹菜单只写 `state.selection`，窗口内容只在 `startRun` 里换（踩过，用户截图就是这个现象）。
 - **浏览器里第一次读上下文必然失败**：Chromium 是"被 UIA 问到才打开无障碍树"，冷启动那一刻 `GetCurrentPatternAs(TextPattern)` 拿不到东西（实测：第 0 次 `no text pattern`，第 1 次开始 selection/段落都正常）。所以 worker 里读失败要**等一下重试**（2 次 × 160ms），并且**别只看点上的元素**——点上的往往是外壳，得沿控制视图往上一层层找 TextPattern。
 - **SAPI 的 vtable 要按继承顺序数**：`ISpVoice` 继承 `ISpEventSource` ← `ISpNotifySource` ← `IUnknown`，所以 `Speak`=20、`SetRate`=28、`SetVolume`=30、`WaitUntilDone`=32（IDL 里每个接口都从 3 开始编号，直接照抄会打错函数）。
-- **设置要能被模型真的用上**：语言/规则/模型座位都在宿主半边的 `dsh-selection-tools.json` 里，跑一轮前现读；模型座位优先级 = 设置里的座位 > 请求带的 provider/model > 部署默认。验证方式很干脆：把座位改成不存在的模型，那一轮必须失败（否则说明设置没被用）。
+- **设置要能被模型真的用上**：语言/规则/模型座位都在宿主半边的 `dsh-select-assist.json` 里，跑一轮前现读；模型座位优先级 = 设置里的座位 > 请求带的 provider/model > 部署默认。验证方式很干脆：把座位改成不存在的模型，那一轮必须失败（否则说明设置没被用）。
 - **布局必须按窗口实际尺寸算**：回答窗口可以被用户用鼠标拖着改大小，`paintPanel`/`panelLayout`/`panelButtons`/`panelHit`/`panelEdgeZone`/`panelHitZone` 全部要拿**实际**宽高（物理 ÷ 缩放 = DIP），不能钉死 `MODES.panel` 的 380×460（踩过：改完大小后正文/页脚还按老尺寸排版，窗口下方留一大片空白，缩放手柄也跑偏）。
 - **八个方向都要能拉**：缩放手柄是 `panelEdgeZone` 算出来的纯几何（**边 6 DIP / 角 16 DIP**），交给 `WM_NCHITTEST` 的 HT 边框代码，剩下的活由 Windows 自己干（窗口是 `WS_POPUP`、没有 `WS_THICKFRAME`，照样能拉）。三处必须一起对，否则"某条边拉不动"：
   - **角要比边宽**：窗口圆角 16 DIP，最角落那几个像素画出来是透明的，而分层窗口的透明像素**不接收鼠标**——角区窄了就等于抓不住（左上/右上尤其明显）。

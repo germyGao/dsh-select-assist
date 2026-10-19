@@ -1,7 +1,7 @@
 /**
  * 插件设置的宿主侧存取。
  *
- * 存哪儿：DSH home 下的 \`dsh-selection-tools.json\`（\`DSH_HOME\` 优先，否则 \`~/.dsh\`）。
+ * 存哪儿：DSH home 下的 \`dsh-select-assist.json\`（\`DSH_HOME\` 优先，否则 \`~/.dsh\`）。
  * 为什么不走 \`ctx.settings\`：那是宿主设置文档的一层，写进去需要宿主挂载 settings provider
  * 与 schemastery schema；本插件要保持"零官方依赖、任何 profile 都能跑"，所以自带一个小
  * 文件 + 自带 HTTP 路由（浏览器半边用同源 fetch 读写）。
@@ -17,7 +17,7 @@ import { DEFAULT_SETTINGS, normalizeSettings, type SelectionToolsSettings } from
 /** 设置文件路径（\`DSH_HOME\` 优先）。 */
 export function settingsFilePath(): string {
   const home = typeof process.env.DSH_HOME === 'string' && process.env.DSH_HOME !== '' ? process.env.DSH_HOME : join(homedir(), '.dsh')
-  return join(home, 'dsh-selection-tools.json')
+  return join(home, 'dsh-select-assist.json')
 }
 
 /** 读设置（文件缺失/损坏都退回默认值，绝不让设置拖垮划词）。 */

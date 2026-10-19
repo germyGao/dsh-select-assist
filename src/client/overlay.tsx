@@ -393,7 +393,7 @@ export function Overlay(props: { ctx: ClientContext }): ReactNode {
   useEffect(() => {
     let cancelled = false
     const probe = () => {
-      void fetch('/api/dsh-selection-tools/system/status')
+      void fetch('/api/dsh-select-assist/system/status')
         .then((response) => (response.ok ? response.json() : null))
         .then((payload: { companion?: { state?: string } } | null) => {
           if (!cancelled) systemWide.current = payload?.companion?.state === 'running'

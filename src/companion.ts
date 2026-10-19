@@ -129,7 +129,7 @@ export function createCompanionManager(
       const match = PORT_PATTERN.exec(text)
       if (match !== null) {
         status = { ...status, state: 'running', port: Number(match[1]), pid: spawned.pid }
-        ctx.logger?.info?.('dsh-selection-tools: companion ready on ' + match[1])
+        ctx.logger?.info?.('dsh-select-assist: companion ready on ' + match[1])
       }
     })
     spawned.stderr?.on('data', (chunk: Buffer) => {
@@ -147,7 +147,7 @@ export function createCompanionManager(
         return
       }
       status = { ...status, state: 'failed', pid: undefined, lastError: 'exited (code=' + String(code) + ' signal=' + String(signal) + ')' }
-      ctx.logger?.warn?.('dsh-selection-tools: companion exited (code=' + String(code) + ')')
+      ctx.logger?.warn?.('dsh-select-assist: companion exited (code=' + String(code) + ')')
       if (status.restarts < maxRestarts) {
         status.restarts += 1
         const delay = restartDelayMs(status.restarts)
@@ -234,7 +234,7 @@ export function createCompanionManager(
         return () => {
           stop()
         }
-      }, 'dsh-selection-tools: companion')
+      }, 'dsh-select-assist: companion')
     },
   }
 }

@@ -1,8 +1,8 @@
 /**
- * dsh-selection-tools —— host 半边（Cordis 插件）。
+ * dsh-select-assist —— host 半边（Cordis 插件）。
  *
  * 职责只有两件事：
- * 1. 在 webServer 上注册 `/api/dsh-selection-tools/*` 同源路由（run / stop / ping）。
+ * 1. 在 webServer 上注册 `/api/dsh-select-assist/*` 同源路由（run / stop / ping）。
  * 2. `run` 里用 Harness 自己的 agent（ctx.agents）跑一轮真实的会话回合，
  *    把 assistant 文本增量以 SSE 推给浏览器半边。
  *

@@ -1,5 +1,5 @@
 /** 插件样式：局部令牌、轻量卡片与浮层，深浅色跟随宿主。 */
-export const STYLE_TAG_ID = 'dsh-selection-tools/client.css'
+export const STYLE_TAG_ID = 'dsh-select-assist/client.css'
 
 const CSS = `
 /* 局部变量不污染宿主；所有表单控件显式继承字体与主题。 */
@@ -154,7 +154,7 @@ export function ensureStyles(): void {
   if (typeof document === 'undefined') return
   if (document.querySelector('style[data-plugin-css=' + JSON.stringify(STYLE_TAG_ID) + ']') !== null) return
   const tag = document.createElement('style')
-  tag.dataset.plugin = 'dsh-selection-tools'
+  tag.dataset.plugin = 'dsh-select-assist'
   tag.dataset.pluginCss = STYLE_TAG_ID
   tag.textContent = CSS
   document.head.appendChild(tag)

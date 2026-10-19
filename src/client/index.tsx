@@ -1,5 +1,5 @@
 /**
- * dsh-selection-tools —— 浏览器半边入口。
+ * dsh-select-assist —— 浏览器半边入口。
  *
  * 两处注册：
  * - \`shell.overlay\`：页内划词菜单 + 回答窗口（系统级伴生进程在跑时它让位）；
@@ -40,7 +40,7 @@ export function apply(ctx: ClientContext): void {
       {
         name: 'shell.overlay',
         // 自己的 cell id：与官方条目并列，不替换任何现有条目。
-        id: 'dsh-selection-tools',
+        id: 'dsh-select-assist',
         order: 60,
       },
       () => createElement(Overlay, { ctx }),
@@ -50,7 +50,7 @@ export function apply(ctx: ClientContext): void {
     slots.register(
       {
         name: 'settings.section',
-        id: 'dsh-selection-tools',
+        id: 'dsh-select-assist',
         order: 40,
         label: () => (detectLocale() === 'zh' ? '划词工具' : 'Selection tools'),
       },

@@ -1,7 +1,7 @@
 /**
  * 设置页里的「划词工具」一页（settings.section）。
  *
- * 数据流：宿主半边持有设置文件（dsh-selection-tools.json）与 HTTP 路由，
+ * 数据流：宿主半边持有设置文件（dsh-select-assist.json）与 HTTP 路由，
  * 这里只用同源 fetch 读写——不依赖官方 settings 服务，插件在任何 profile 下都能用。
  *
  * 模型下拉的候选来自官方 \`ctx.modelDirectories\`（与输入框的模型座位同一份目录），

@@ -1,5 +1,5 @@
 /**
- * dsh-selection-tools 系统级伴生进程（Node + koffi + GDI+）。
+ * dsh-select-assist 系统级伴生进程（Node + koffi + GDI+）。
  *
  * 1. **全局划词**：轮询鼠标左右中键与光标位置识别"拖选/双击选词"，手势落下就弹菜单——
  *    **划词时一次都不碰剪贴板**；选中的文字留到用户点菜单项时才解析（UI Automation 优先，
@@ -971,7 +971,7 @@ async function stopRun() {
   refreshMain()
   if (sessionId === undefined) return
   try {
-    await fetch(DSH_ORIGIN + '/api/dsh-selection-tools/stop', {
+    await fetch(DSH_ORIGIN + '/api/dsh-select-assist/stop', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId }),
@@ -1198,7 +1198,7 @@ function startRun(action, selection = state.selection) {
   const context = typeof selection.context === 'string' ? selection.context : ''
   void (async () => {
     try {
-      const response = await fetch(DSH_ORIGIN + '/api/dsh-selection-tools/run', {
+      const response = await fetch(DSH_ORIGIN + '/api/dsh-select-assist/run', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action, text, context, locale: LOCALE }),
@@ -1691,7 +1691,7 @@ const server = createServer((req, res) => {
 
 server.listen(Number(process.env.DSH_SELECTION_PORT ?? 0), '127.0.0.1', () => {
   const port = server.address().port
-  process.stdout.write('dsh-selection-tools companion (native) listening on http://127.0.0.1:' + port + ' (hook=' + (HOOK_ENABLED ? 'on' : 'off') + ')\n')
+  process.stdout.write('dsh-select-assist companion (native) listening on http://127.0.0.1:' + port + ' (hook=' + (HOOK_ENABLED ? 'on' : 'off') + ')\n')
   if (api === null || gdi === null) {
     reportError('init', new Error('koffi / GDI+ 不可用：系统级划词已禁用'))
     return
